@@ -55,7 +55,7 @@
         <div class="min-h-screen flex flex-col items-center justify-center p-4">
             <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 sm:p-8 border border-slate-200">
                 <div class="flex flex-col items-center mb-8 border-b border-slate-100 pb-6">
-                    <img id="logo-public" src="logo-D2-SmartHome-preto.png" alt="D2 Logo" class="w-32 sm:w-40 mb-4 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+                    <img id="logo-public" src="logo-D2-Group-preto.png" alt="D2 Logo" class="w-32 sm:w-40 mb-4 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
                     <div class="w-16 h-16 bg-blue-600 rounded-xl hidden items-center justify-center text-white mx-auto">
                         <i data-lucide="building-2" class="w-10 h-10"></i>
                     </div>
@@ -91,7 +91,7 @@
     <div id="login-screen" class="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
             <div class="flex flex-col items-center mb-6">
-                <div class="w-32 mb-6"><img id="logo-login" src="logo-D2-SmartHome-preto.png" alt="D2 Logo" class="w-full h-auto object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div class="w-16 h-16 bg-blue-600 rounded-xl hidden items-center justify-center text-white mx-auto"><i data-lucide="building-2" class="w-10 h-10"></i></div></div>
+                <div class="w-32 mb-6"><img id="logo-login" src="logo-D2-Group-preto.png" alt="D2 Logo" class="w-full h-auto object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div class="w-16 h-16 bg-blue-600 rounded-xl hidden items-center justify-center text-white mx-auto"><i data-lucide="building-2" class="w-10 h-10"></i></div></div>
                 <h1 class="text-2xl font-bold text-slate-800 text-center">D2 Contractors</h1>
                 <p id="login-subtitle" class="text-slate-500 text-sm mt-1">Payment & Compliance Control</p>
             <div id="company-picker-login" class="mt-5 grid grid-cols-2 gap-3">
@@ -388,14 +388,17 @@ let storage = null;
             const meta = COMPANIES[activeCompanyKey] || COMPANIES.hvac;
 
             // Logos
+            const GROUP_LOGO = "logo-D2-Group-preto.png";
             const lp = document.getElementById("logo-public");
             const ll = document.getElementById("logo-login");
             const ls = document.getElementById("logo-sidebar");
-            if (lp) lp.src = meta.logo;
-            if (ll) ll.src = meta.logo;
+            // Top branding should always be D2 Group (app umbrella)
+            if (lp) lp.src = GROUP_LOGO;
+            if (ll) ll.src = GROUP_LOGO;
+            // Sidebar can reflect the active company workspace
             if (ls) ls.src = meta.logo;
 
-            // Labels
+// Labels
             const companyName = document.getElementById("company-name-display");
             if (companyName) companyName.textContent = meta.label.toUpperCase();
 
