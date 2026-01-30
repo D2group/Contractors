@@ -18,6 +18,25 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-storage-compat.js"></script>
 
     <style>
+
+        /* Print header base (hidden on screen) */
+        .print-header { display: none; }
+        .print-header-inner { display: flex; align-items: center; gap: 12px; }
+        .print-header-logo { width: 46px; height: 46px; object-fit: contain; }
+        .print-header-title { font-weight: 800; font-size: 14px; color: #0f172a; line-height: 1.1; }
+        .print-header-company { font-weight: 700; font-size: 12px; color: #334155; margin-top: 2px; }
+        @media print {
+            .print-header {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                padding: 10px 0;
+                background: white;
+                border-bottom: 1px solid #e2e8f0;
+                z-index: 9999;
+            }
+        }
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -27,6 +46,10 @@
         @media print {
             @page { margin: 1.5cm; size: auto; }
             body { background: white; color: black; }
+            /* Print header (company context) */
+            #print-header { display: block !important; }
+            #main-content { padding-top: 70px !important; }
+
             #sidebar, #login-screen, .no-print, #edit-c-modal, #user-modal, #edit-payment-modal, #public-onboard-view, #mobile-overlay, #mobile-menu-btn { display: none !important; }
             #main-content { margin: 0; padding: 0; width: 100%; height: auto; overflow: visible; }
             .card { box-shadow: none; border: none; }
@@ -46,8 +69,105 @@
     </style>
 </head>
 <body class="bg-slate-100 text-slate-900 font-sans h-screen flex overflow-hidden relative">
+    <!-- Company header for print + quick context -->
+    <div id="print-header" class="print-header">
+        <div class="print-header-inner">
+            <img id="print-header-logo" src="" alt="Company logo" class="print-header-logo" />
+            <div class="print-header-text">
+                <div class="print-header-title">D2 Contractors</div>
+                <div id="print-header-company" class="print-header-company">Company</div>
+            </div>
+        </div>
+    </div>
 
-    <!-- MOBILE OVERLAY BACKDROP -->
+    <!-- Onboarding link modal -->
+    <div id="link-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 no-print">
+        <div class="absolute inset-0 bg-black/40" onclick="closeLinkModal()"></div>
+        <div class="relative bg-white w-full max-w-lg rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <img id="link-modal-logo" src="" alt="Company logo" class="w-10 h-10 object-contain" />
+                    <div>
+                        <div class="text-sm font-bold text-slate-900">Onboarding Link</div>
+                        <div id="link-modal-company" class="text-xs text-slate-500">Company</div>
+                    </div>
+                </div>
+                <button onclick="closeLinkModal()" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-3">
+                <div class="text-sm text-slate-600">
+                    This link is locked to the selected company workspace.
+                </div>
+                <div class="flex items-center gap-2">
+                    <input id="link-modal-input" readonly class="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm" />
+                    <button onclick="copyLinkFromModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm">Copy</button>
+                </div>
+                <div class="text-xs text-slate-500">
+                    Tip: When sent via WhatsApp/iMessage, the preview will show the company logo.
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    
+    <!-- Company Settings modal (Super Admin) -->
+    <div id="company-settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 no-print">
+        <div class="absolute inset-0 bg-black/40" onclick="closeCompanySettingsModal()"></div>
+        <div class="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="settings" class="w-5 h-5 text-slate-700"></i>
+                    <div>
+                        <div class="text-sm font-bold text-slate-900">Company Settings</div>
+                        <div class="text-xs text-slate-500">Super admin only: edit company names/logos used in the app, links, and printed reports.</div>
+                    </div>
+                </div>
+                <button class="p-2 rounded-lg hover:bg-slate-100" onclick="closeCompanySettingsModal()">
+                    <i data-lucide="x" class="w-5 h-5 text-slate-600"></i>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-4">
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="border border-slate-200 rounded-xl p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <img src="logo-D2-HVAC-Solutions-preto.png" class="h-7 object-contain" alt="HVAC logo">
+                            <div class="font-extrabold text-slate-800">HVAC</div>
+                        </div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Display name</label>
+                        <input id="cs-hvac-label" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="D2 HVAC Solutions">
+                        <label class="block text-xs font-bold text-slate-600 mt-3 mb-1">Logo filename (repo root)</label>
+                        <input id="cs-hvac-logo" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="logo-D2-HVAC-Solutions-preto.png">
+                    </div>
+
+                    <div class="border border-slate-200 rounded-xl p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <img src="logo-D2-SmartHome-preto.png" class="h-7 object-contain" alt="Smart logo">
+                            <div class="font-extrabold text-slate-800">SMART</div>
+                        </div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Display name</label>
+                        <input id="cs-smart-label" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="D2 Smart Home">
+                        <label class="block text-xs font-bold text-slate-600 mt-3 mb-1">Logo filename (repo root)</label>
+                        <input id="cs-smart-logo" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="logo-D2-SmartHome-preto.png">
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600">
+                    Upload the PNG logo files to the same folder as <code class="bg-white border border-slate-200 px-1 rounded">index.html</code>. Use the exact filename above.
+                </div>
+            </div>
+
+            <div class="p-5 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-sm font-bold" onclick="closeCompanySettingsModal()">Cancel</button>
+                <button class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold" onclick="saveCompanySettings()">Save</button>
+            </div>
+        </div>
+    </div>
+
+<!-- MOBILE OVERLAY BACKDROP -->
     <div id="mobile-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-slate-900/50 z-40 hidden md:hidden backdrop-blur-sm transition-opacity"></div>
 
     <!-- PUBLIC ONBOARDING VIEW -->
@@ -95,8 +215,7 @@
                 <h1 class="text-2xl font-bold text-slate-800 text-center">D2 Contractors</h1>
                 <p id="login-subtitle" class="text-slate-500 text-sm mt-1">Payment & Compliance Control</p>
             <div id="company-picker-login" class="mt-5 grid grid-cols-2 gap-3">
-                <button type="button" onclick="selectCompany('hvac', true)" id="btn-company-hvac" class="group flex items-center justify-center gap-0 border border-slate-200 rounded-xl py-2 px-3 hover:bg-slate-50 transition">
-                    <img id="logo-hvac-mini" src="logo-D2-HVAC-Solutions-preto.png" alt="D2 HVAC" class="h-7 object-contain" onerror="this.style.display='none'">
+                <button type="button" onclick="selectCompany('hvac', true)" id="btn-company-hvac" class="group flex items-center justify-center gap-0 border border-slate-200 rounded-xl py-2 px-3 hover:bg-slate-50 transition"><img id="logo-hvac-mini" src="logo-D2-HVAC-Solutions-preto.png" alt="D2 HVAC" class="h-7 object-contain" onerror="this.style.display='none'">
                 </button>
                 <button type="button" onclick="selectCompany('smart', true)" id="btn-company-smart" class="group flex items-center justify-center gap-0 border border-slate-200 rounded-xl py-2 px-3 hover:bg-slate-50 transition">
                     <img id="logo-smart-mini" src="logo-D2-SmartHome-preto.png" alt="D2 Smart" class="h-7 object-contain" onerror="this.style.display='none'">
@@ -135,6 +254,25 @@
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" id="um-email" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"></div>
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label><input type="text" id="um-pass" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="New Password"></div>
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label><select id="um-role" onchange="toggleContractorSelect()" class="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"><option value="admin">Admin</option><option value="employee">Employee</option><option value="contractor">Contractor (Portal)</option></select></div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Company Access</label>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" id="um-access-hvac" class="rounded border-slate-300" />
+                            HVAC
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" id="um-access-smart" class="rounded border-slate-300" />
+                            Smart
+                        </label>
+                    </div>
+                    <div class="text-[11px] text-slate-500 mt-1">Controls which workspace(s) this user can access.</div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Firebase UID (optional)</label>
+                    <input type="text" id="um-uid" placeholder="Paste UID to manage Firebase-auth users" class="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                    <div class="text-[11px] text-slate-500 mt-1">If provided, access is granted in <code>companies/{company}/users/{uid}</code>.</div>
+                </div>
                 <div id="um-contractor-div" class="hidden"><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Link to Contractor Profile</label><select id="um-contractor-link" class="w-full p-2 bg-white border border-slate-300 rounded"><option value="">Select Contractor...</option></select></div>
                 <div class="flex justify-end gap-0 mt-4"><button type="button" onclick="closeUserModal()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button type="button" onclick="handleSaveUser()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">Save</button></div>
             </form>
@@ -225,7 +363,8 @@
             </div>
             
             <div class="flex items-center gap-0">
-                <div id="header-company-pill" class="hidden md:flex items-center gap-0 bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg">
+                <div id="header-company-pill" class="hidden md:flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg">
+                    <img id="header-company-logo" src="" alt="Company logo" class="w-5 h-5 object-contain" />
                     <span id="header-company-label" class="text-xs font-bold text-slate-700">Company</span>
                 </div>
                 <select id="company-switch" class="hidden text-xs font-bold bg-white border border-slate-300 rounded-lg px-2 py-2 outline-none" onchange="handleCompanySwitch(this.value)">
@@ -249,16 +388,12 @@
                 key: "hvac",
                 label: "D2 HVAC Solutions",
                 shortLabel: "HVAC",
-                logo: "logo-D2-HVAC-Solutions-preto.png",
-                master: { user: "dante.frota@d2hvacsolutions.com", pass: "!D2hvac!2025", name: "Dante Frota" }
-            },
+                logo: "logo-D2-HVAC-Solutions-preto.png"},
             smart: {
                 key: "smart",
-                label: "D2 Smart Solutions",
+                label: "D2 Smart Home",
                 shortLabel: "SMART",
-                logo: "logo-D2-SmartHome-preto.png",
-                master: { user: "dante.frota@d2smarthome.com", pass: "!D2Smart!2022", name: "Dante Frota" }
-            }
+                logo: "logo-D2-SmartHome-preto.png"}
         };
 
         // Single database base (D2 HVAC) for all data; company segregation via companyKey field.
@@ -278,6 +413,38 @@
 
         const db = firebase.firestore();
         const auth = firebase.auth();
+
+        // Runtime overrides loaded from Firestore (/companies/{companyKey})
+        let COMPANY_OVERRIDES = {};
+
+        function getCompanyMeta(companyKey) {
+            const base = COMPANIES[companyKey] || COMPANIES.hvac;
+            const o = COMPANY_OVERRIDES[companyKey] || {};
+            return Object.assign({}, base, o);
+        }
+
+        async function loadCompanyOverrides() {
+            try {
+                const keys = Object.keys(COMPANIES);
+                const out = {};
+                for (const k of keys) {
+                    const snap = await db.collection("companies").doc(k).get();
+                    if (snap.exists) {
+                        const d = snap.data() || {};
+                        const o = {};
+                        if (typeof d.label === "string" && d.label.trim()) o.label = d.label.trim();
+                        if (typeof d.shortLabel === "string" && d.shortLabel.trim()) o.shortLabel = d.shortLabel.trim();
+                        if (typeof d.logo === "string" && d.logo.trim()) o.logo = d.logo.trim();
+                        out[k] = o;
+                    }
+                }
+                COMPANY_OVERRIDES = out;
+            } catch (e) {
+                console.warn("Company overrides load failed:", e);
+                COMPANY_OVERRIDES = {};
+            }
+        }
+
 
 // ===== Legacy Source (D2 Smart) - Migration Only =====
 const smartFirebaseConfig = {
@@ -384,12 +551,26 @@ let storage = null;
         function canSwitchCompany() {
             if (COMPANY_LOCKED_FROM_URL) return false;
             if (!currentUser) return true; // pre-login selection
-            // If companyKey is "all" => can switch. Otherwise locked.
-            return (currentUser.role === "admin" && (currentUser.companyKey === "all" || currentUser.canSwitchCompany === true));
+            const access = currentUser.companyAccess || (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
+            return Array.isArray(access) && access.length > 1;
+        }
         }
 
         function applyCompanyBranding() {
-            const meta = COMPANIES[activeCompanyKey] || COMPANIES.hvac;
+            const meta = getCompanyMeta(activeCompanyKey);
+
+            // Company context logos (screen + print + link modal)
+            const headerLogo = document.getElementById("header-company-logo");
+            if (headerLogo) headerLogo.src = meta.logo;
+            const printLogo = document.getElementById("print-header-logo");
+            if (printLogo) printLogo.src = meta.logo;
+            const printCompany = document.getElementById("print-header-company");
+            if (printCompany) printCompany.textContent = meta.label;
+            const linkLogo = document.getElementById("link-modal-logo");
+            if (linkLogo) linkLogo.src = meta.logo;
+            const linkCompany = document.getElementById("link-modal-company");
+            if (linkCompany) linkCompany.textContent = meta.label;
+
 
             // Logos
             const GROUP_LOGO = "logo-D2-Group-preto.png";
@@ -443,6 +624,20 @@ let storage = null;
             activeCompanyKey = (key === "smart") ? "smart" : "hvac";
             if (persist) saveCompanyToStorage();
             applyCompanyBranding();
+
+            // Keep user context aligned to the active workspace
+            if (currentUser) {
+                currentUser.companyKey = activeCompanyKey;
+                if (currentUser.rolesByCompany && currentUser.rolesByCompany[activeCompanyKey]) {
+                    currentUser.role = currentUser.rolesByCompany[activeCompanyKey];
+                }
+                // for legacy accounts that store a single role
+                if (!currentUser.rolesByCompany && currentUser.role) {
+                    currentUser.rolesByCompany = { [activeCompanyKey]: currentUser.role };
+                }
+                saveSession();
+            }
+        }
         }
 
         function handleCompanySwitch(key) {
@@ -453,8 +648,9 @@ let storage = null;
         }
 
         
-        window.onload = function() {
+        window.onload = async function() {
             lucide.createIcons();
+            await loadCompanyOverrides();
             if (urlParams.get('mode') === 'onboard') {
                 isPublicMode = true;
                 initPublicMode();
@@ -630,23 +826,40 @@ let storage = null;
                         return snap.exists ? snap.data() : null;
                     }
 
-                    const meSel = await fetchCompanyUser(selectedCompany);
-                    if (!meSel || meSel.active !== true) {
-                        throw new Error("Access not granted for this company. Contact an admin.");
+                    const meHvac = await fetchCompanyUser('hvac');
+                    const meSmart = await fetchCompanyUser('smart');
+
+                    const access = [];
+                    const rolesByCompany = {};
+                    const namesByCompany = {};
+                    const emailsByCompany = {};
+
+                    if (meHvac && meHvac.active === true) {
+                        access.push('hvac');
+                        rolesByCompany.hvac = (meHvac.role || 'user');
+                        namesByCompany.hvac = meHvac.name || '';
+                        emailsByCompany.hvac = meHvac.email || '';
+                    }
+                    if (meSmart && meSmart.active === true) {
+                        access.push('smart');
+                        rolesByCompany.smart = (meSmart.role || 'user');
+                        namesByCompany.smart = meSmart.name || '';
+                        emailsByCompany.smart = meSmart.email || '';
                     }
 
-                    const role = (meSel.role || 'user');
-                    const name = (meSel.name || email);
-
-                    // Can switch company only if admin in both
-                    let canSwitchCompany = false;
-                    if (role === 'admin') {
-                        const other = selectedCompany === 'hvac' ? 'smart' : 'hvac';
-                        const meOther = await fetchCompanyUser(other);
-                        if (meOther && meOther.active === true && (meOther.role || '') === 'admin') {
-                            canSwitchCompany = true;
-                        }
+                    if (access.length === 0) {
+                        throw new Error("Access not granted yet. Ask an admin to enable your account for HVAC and/or Smart.");
                     }
+
+                    // If user selected a company they don't have access to, auto-select the first allowed company
+                    if (!access.includes(selectedCompany)) {
+                        selectedCompany = access[0];
+                        selectCompany(selectedCompany, true);
+                    }
+
+                    const role = rolesByCompany[selectedCompany] || 'user';
+                    const name = (namesByCompany[selectedCompany] || '').trim() || email;
+                    const isSuperAdmin = Object.values(rolesByCompany).includes('super_admin');
 
                     foundUser = {
                         email,
@@ -655,9 +868,25 @@ let storage = null;
                         uid,
                         name,
                         companyKey: selectedCompany,
-                        canSwitchCompany,
+                        companyAccess: access,
+                        rolesByCompany,
+                        isSuperAdmin,
+                        canSwitchCompany: access.length > 1,
                         authProvider: 'firebase'
                     };
+
+                    // Maintain a lightweight index for admin-only management (does NOT grant access by itself)
+                    try {
+                        await db.collection('app_users').doc(uid).set({
+                            email,
+                            name,
+                            active: true,
+                            authProvider: 'firebase',
+                            companyAccess: access,
+                            rolesByCompany,
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true });
+                    } catch(e) { console.warn("Index upsert failed:", e); }
                 } catch (firebaseLoginErr) {
                     // If Firebase login failed for reasons OTHER than invalid credentials,
                     // surface the real error (e.g., unauthorized-domain, too-many-requests).
@@ -701,6 +930,23 @@ let storage = null;
                             const data = doc.data();
                             if ((data.password || '') === pass) {
                                 foundUser = { ...data, id: doc.id, authProvider: 'legacy' };
+
+                        // Enforce company access for legacy accounts
+                        const ca = Array.isArray(foundUser.companyAccess)
+                            ? foundUser.companyAccess.map(normalizeCompanyKey)
+                            : (foundUser.companyKey ? [normalizeCompanyKey(foundUser.companyKey)] : []);
+                        foundUser.companyAccess = ca;
+
+                        if (ca.length === 0) {
+                            throw new Error("Access not granted yet. Ask an admin to enable your account.");
+                        }
+                        if (!ca.includes(selectedCompany)) {
+                            selectedCompany = ca[0];
+                            selectCompany(selectedCompany, true);
+                        }
+                        foundUser.companyKey = selectedCompany;
+                        foundUser.canSwitchCompany = ca.length > 1;
+
                             }
                         }
 
@@ -713,6 +959,14 @@ let storage = null;
 
                 // Successful login
                 currentUser = foundUser;
+
+                // Normalize access/roles
+                if (!Array.isArray(currentUser.companyAccess)) {
+                    currentUser.companyAccess = currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : [];
+                }
+                if (!currentUser.rolesByCompany) {
+                    currentUser.rolesByCompany = { [normalizeCompanyKey(currentUser.companyKey || activeCompanyKey)]: currentUser.role || 'user' };
+                }
 
                 // User initials
                 const baseName = (currentUser.name || currentUser.email || '').trim();
@@ -809,19 +1063,23 @@ function grantAccess(isNewLogin) {
             });
             _unsubs.push(unsubPayments);
 
-            // Users
-            if (currentUser && currentUser.role === 'admin') {
+            // Users (admin-only)
+            if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true)) {
                 const unsubUsers = root.collection('app_users').onSnapshot(s => {
                     const all = s.docs.map(d => ({ id: d.id, ...d.data() }));
-                    appUsers = all
-                        .map(u => ({ ...u, companyKey: normalizeCompanyKey(u.companyKey) }))
-                        .filter(u => normalizeCompanyKey(u.companyKey) === activeCompanyKey);
+
+                    appUsers = all.map(u => {
+                        const ca = Array.isArray(u.companyAccess)
+                            ? u.companyAccess.map(normalizeCompanyKey)
+                            : (u.companyKey ? [normalizeCompanyKey(u.companyKey)] : []);
+                        return { ...u, companyAccess: ca, companyKey: normalizeCompanyKey(u.companyKey || (ca[0] || 'hvac')) };
+                    }).filter(u => (u.companyAccess || []).includes(activeCompanyKey));
+
                     if (window.currentView === 'users') renderUsers();
                 });
                 _unsubs.push(unsubUsers);
             }
-
-            if (forceRefresh) refreshCurrentView();
+if (forceRefresh) refreshCurrentView();
         }
 
         async function initApp(isNewLogin) {
@@ -864,7 +1122,7 @@ function grantAccess(isNewLogin) {
                 nav.innerHTML += createBtn('payments', 'dollar-sign', 'Payments', "pendingLedgerFilter = null; router('payments'); if(window.innerWidth < 768) toggleMobileMenu();");
                 nav.innerHTML += createBtn('reports', 'file-bar-chart', 'Financial Reports');
             } else { nav.innerHTML += createBtn('my-profile', 'user', 'My Profile'); }
-            if (role === 'admin') nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
+            if (role === 'admin' || role === 'super_admin' || (currentUser && currentUser.isSuperAdmin === true)) nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
             lucide.createIcons();
         }
 
@@ -1117,435 +1375,91 @@ function grantAccess(isNewLogin) {
         // REMOVED 'e' PARAMETER
         async function handleSaveUser() {
             const id = document.getElementById('um-id').value;
-            const name = document.getElementById('um-name').value;
-            const email = document.getElementById('um-email').value;
-            const pass = document.getElementById('um-pass').value;
+            const name = (document.getElementById('um-name').value || "").trim();
+            const email = (document.getElementById('um-email').value || "").trim().toLowerCase();
+            const pass = document.getElementById('um-pass').value || "";
             const role = document.getElementById('um-role').value;
-            let linkedId = document.getElementById('um-contractor-link').value;
-            if (role === 'contractor') {
-                if (!linkedId) return alert("Please select a Contractor profile.");
-            } else {
-                linkedId = null;
-            }
-            const isAIPreview = typeof __app_id !== 'undefined';
-            const uCollection = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users') : db.collection('app_users');
-            const data = { name: name, email: email, password: btoa(pass), role: role, linkedContractorId: (role === 'contractor') ? (linkedId || null) : null, updatedAt: new Date().toISOString() };
-            try {
-                if(id) await uCollection.doc(id).update(data); else await uCollection.add({...data, createdAt: new Date().toISOString()});
-                closeUserModal(); showToast(id ? "User Updated" : "User Created");
-            } catch(err) { alert(err.message); }
-        }
 
+            const access = [];
+            if (document.getElementById('um-access-hvac').checked) access.push('hvac');
+            if (document.getElementById('um-access-smart').checked) access.push('smart');
 
-        // ============================================================
-        // RESTORED MODULES: Payments, Reports, Users & Contractor Portal
-        // ============================================================
+            const uidInput = (document.getElementById('um-uid').value || "").trim();
 
-        function getRootRef() {
-            const isAIPreview = typeof __app_id !== 'undefined';
-            return isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data') : db;
-        }
+            if (!email) { showToast("Email is required.", true); return; }
+            if (access.length === 0) { showToast("Select at least one company workspace.", true); return; }
 
-        function safeDateStr(d) {
-            if (!d) return "";
-            if (typeof d === "string") return d;
-            if (d.toDate) return d.toDate().toISOString().split("T")[0];
-            if (typeof d.seconds === "number") return new Date(d.seconds * 1000).toISOString().split("T")[0];
-            try { return new Date(d).toISOString().split("T")[0]; } catch(e) { return String(d); }
-        }
+            // Normalize role for company user docs
+            const companyRole = (role === 'admin' || role === 'super_admin') ? role : 'user';
 
-        function money(n) {
-            const num = Number.parseFloat(n || 0);
-            if (Number.isNaN(num)) return "$0.00";
-            return "$" + num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
+            const payload = {
+                name,
+                email,
+                role,
+                active: true,
+                companyAccess: access,
+                companyKey: (access.length === 1 ? access[0] : (activeCompanyKey || access[0])),
+                updatedAt: new Date().toISOString()
+            };
 
-        function getContractorNameById(id) {
-            const c = contractors.find(x => x.id === id);
-            return c ? (c.businessName || c.contactName || "Contractor") : "Unknown";
-        }
+            const batch = db.batch();
 
-        function populateContractorSelect(selectEl, { includeAll = false, selectedId = "" } = {}) {
-            if (!selectEl) return;
-            const options = [];
-            if (includeAll) options.push(`<option value="">All Contractors</option>`);
-            contractors
-                .slice()
-                .sort((a, b) => (a.businessName || "").localeCompare((b.businessName || "")))
-                .forEach(c => options.push(`<option value="${c.id}" ${c.id === selectedId ? "selected" : ""}>${c.businessName || "Unnamed Contractor"}</option>`));
-            selectEl.innerHTML = options.join("");
-        }
+            // If UID provided, we treat this as a Firebase-auth user and manage company membership docs
+            if (uidInput) {
+                payload.uid = uidInput;
+                payload.authProvider = 'firebase';
 
-        // ----------------------------
-        // PAYMENTS (Ledger + CRUD)
-        // ----------------------------
+                // Index doc id = uid for consistent management
+                const userDoc = db.collection('app_users').doc(uidInput);
+                batch.set(userDoc, payload, { merge: true });
 
-        function renderPayments() {
-            const container = document.getElementById('content-area');
-            const isFiltered = !!pendingLedgerFilter;
-            const filteredName = isFiltered ? getContractorNameById(pendingLedgerFilter) : "";
+                // Write/disable company membership docs
+                for (const ck of ['hvac', 'smart']) {
+                    const ref = db.collection('companies').doc(ck).collection('users').doc(uidInput);
+                    if (access.includes(ck)) {
+                        batch.set(ref, {
+                            active: true,
+                            role: companyRole,
+                            name,
+                            email,
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true });
+                    } else {
+                        // keep record but revoke access
+                        batch.set(ref, { active: false, updatedAt: new Date().toISOString() }, { merge: true });
+                    }
+                }
 
-            // Contractor users should never see the global ledger
-            if (currentUser && currentUser.role === 'contractor') {
-                router('my-profile');
+                try {
+                    await batch.commit();
+                    closeUserModal();
+                    showToast("User access updated.");
+                } catch (e) {
+                    console.error(e);
+                    showToast("Failed to update user access.", true);
+                }
                 return;
             }
 
-            const sorted = payments
-                .slice()
-                .sort((a, b) => new Date(safeDateStr(b.date) || b.createdAt || 0) - new Date(safeDateStr(a.date) || a.createdAt || 0));
+            // Legacy user management (stores password in Firestore; not recommended, but kept for backward compatibility)
+            if (!id && !pass) { showToast("Password is required for legacy users.", true); return; }
 
-            const list = isFiltered ? sorted.filter(p => p.contractorId === pendingLedgerFilter) : sorted;
-
-            const total = list.reduce((acc, p) => acc + (Number.parseFloat(p.amount) || 0), 0);
-
-            const rows = list.map(p => {
-                const cName = getContractorNameById(p.contractorId);
-                const d = safeDateStr(p.date);
-                const amt = money(p.amount);
-                const method = p.method || "-";
-                const memo = (p.description || p.memo || "").toString();
-                return `
-                    <tr class="hover:bg-slate-50">
-                        <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${d || "-"}</td>
-                        <td class="py-3 px-3 text-sm font-semibold text-slate-800">${cName}</td>
-                        <td class="py-3 px-3 text-sm font-bold text-slate-800 whitespace-nowrap">${amt}</td>
-                        <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${method}</td>
-                        <td class="py-3 px-3 text-sm text-slate-600 max-w-[280px] truncate" title="${memo.replaceAll('"', '&quot;')}">${memo || "-"}</td>
-                        <td class="py-3 px-3 text-sm text-slate-600 action-col whitespace-nowrap">
-                            <button type="button" onclick="openEditPaymentModal('${p.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>
-                        </td>
-                    </tr>
-                `;
-            }).join("");
-
-            container.innerHTML = `
-                <div class="no-print flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-                    <div>
-                        <h3 class="text-xl font-bold text-slate-800">Payment Ledger</h3>
-                        <p class="text-sm text-slate-500">Track and manage contractor payouts.</p>
-                    </div>
-                    <div class="flex items-center gap-0">
-                        <button onclick="window.print()" class="bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-3 py-2 rounded-lg font-bold flex items-center gap-0 shadow-sm text-xs md:text-sm">
-                            <i data-lucide="printer" class="w-4 h-4"></i> Print
-                        </button>
-                    </div>
-                </div>
-
-                ${isFiltered ? `
-                    <div class="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-blue-600 text-white rounded-lg"><i data-lucide="filter" class="w-5 h-5"></i></div>
-                            <div>
-                                <p class="text-xs font-bold text-blue-900 uppercase tracking-wider">Filtered Contractor</p>
-                                <p class="font-bold text-slate-800">${filteredName}</p>
-                            </div>
-                        </div>
-                        <button onclick="pendingLedgerFilter=null; router('payments')" class="text-blue-700 font-bold text-sm hover:underline">Clear</button>
-                    </div>
-                ` : ""}
-
-                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6 no-print">
-                    <h4 class="font-bold text-slate-800 mb-4 flex items-center gap-0"><i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i> Record a Payment</h4>
-                    <form id="payment-form" class="grid grid-cols-1 md:grid-cols-6 gap-3" onsubmit="event.preventDefault(); return false;">
-                        <div class="md:col-span-2">
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contractor</label>
-                            <select id="np-contractor" required class="w-full p-2 border border-slate-300 rounded bg-white"></select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label>
-                            <input type="date" id="np-date" required class="w-full p-2 border border-slate-300 rounded">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Amount</label>
-                            <input type="number" step="0.01" id="np-amount" required placeholder="0.00" class="w-full p-2 border border-slate-300 rounded">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Method</label>
-                            <select id="np-method" class="w-full p-2 border border-slate-300 rounded bg-white">
-                                <option>Check</option><option>ACH</option><option>Zelle</option><option>Cash</option><option>Credit Card</option>
-                            </select>
-                        </div>
-                        <div class="md:col-span-6">
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Memo</label>
-                            <input type="text" id="np-memo" placeholder="Optional" class="w-full p-2 border border-slate-300 rounded">
-                        </div>
-                        <div class="md:col-span-6 flex justify-end">
-                            <button type="button" onclick="handleSavePayment()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-bold shadow-sm">Record Payment</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-green-100 text-green-700 rounded-lg"><i data-lucide="wallet" class="w-5 h-5"></i></div>
-                            <div>
-                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total in View</p>
-                                <p class="text-lg font-bold text-slate-800">${money(total)}</p>
-                            </div>
-                        </div>
-                        <div class="text-xs text-slate-500">${list.length} payment(s)</div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-                                <tr>
-                                    <th class="py-3 px-3">Date</th>
-                                    <th class="py-3 px-3">Contractor</th>
-                                    <th class="py-3 px-3">Amount</th>
-                                    <th class="py-3 px-3">Method</th>
-                                    <th class="py-3 px-3">Memo</th>
-                                    <th class="py-3 px-3 action-col">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rows || `<tr><td colspan="6" class="py-10 text-center text-slate-400">No payments found.</td></tr>`}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-
-            // initialize form defaults
-            const contractorSelect = document.getElementById('np-contractor');
-            populateContractorSelect(contractorSelect, { selectedId: pendingLedgerFilter || "" });
-            const dateInput = document.getElementById('np-date');
-            if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().split('T')[0];
-
-            lucide.createIcons();
-        }
-
-        function openEditPaymentModal(paymentId) {
-            const p = payments.find(x => x.id === paymentId);
-            if (!p) return;
-
-            const contractorSelect = document.getElementById('ep-contractor');
-            populateContractorSelect(contractorSelect, { selectedId: p.contractorId });
-
-            document.getElementById('ep-id').value = p.id;
-            document.getElementById('ep-date').value = safeDateStr(p.date) || new Date().toISOString().split('T')[0];
-            document.getElementById('ep-amount').value = Number.parseFloat(p.amount || 0);
-            document.getElementById('ep-method').value = p.method || "Check";
-            document.getElementById('ep-memo').value = (p.description || p.memo || "");
-
-            document.getElementById('edit-payment-modal').classList.remove('hidden');
-            lucide.createIcons();
-        }
-
-        async function handleUpdatePayment() {
-            const btn = document.getElementById('btn-update-p');
-            if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
-
-            const id = document.getElementById('ep-id').value;
-            if (!id) return;
+            payload.authProvider = 'legacy';
+            if (pass) payload.password = btoa(pass);
 
             try {
-                const payload = {
-                    date: document.getElementById('ep-date').value,
-                    contractorId: document.getElementById('ep-contractor').value,
-                    amount: Number.parseFloat(document.getElementById('ep-amount').value || 0),
-                    method: document.getElementById('ep-method').value,
-                    description: document.getElementById('ep-memo').value,
-                    updatedAt: new Date().toISOString()
-                };
-
-                await getRootRef().collection('payments').doc(id).update(payload);
-
-                closeEditPaymentModal();
-                showToast("Payment Updated");
-            } catch (err) {
-                console.error(err);
-                alert("Error updating payment: " + err.message);
-            } finally {
-                if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+                if (id) {
+                    await db.collection('app_users').doc(id).set(payload, { merge: true });
+                } else {
+                    await db.collection('app_users').add(payload);
+                }
+                closeUserModal();
+                showToast("User saved.");
+            } catch (e) {
+                console.error(e);
+                showToast("Failed to save user.", true);
             }
         }
-
-        async function handleDeletePaymentFromModal() {
-            const id = document.getElementById('ep-id').value;
-            if (!id) return;
-            if (!confirm("Delete this payment?")) return;
-
-            try {
-                await getRootRef().collection('payments').doc(id).delete();
-                closeEditPaymentModal();
-                showToast("Payment Deleted");
-            } catch (err) {
-                console.error(err);
-                alert("Error deleting payment: " + err.message);
-            }
-        }
-
-        // ----------------------------
-        // REPORTS (Compliance + 1099)
-        // ----------------------------
-
-        function renderReports() {
-            const container = document.getElementById('content-area');
-
-            // Contractor users should never see reports
-            if (currentUser && currentUser.role === 'contractor') {
-                router('my-profile');
-                return;
-            }
-
-            const currentYear = new Date().getFullYear();
-            const yearSelectId = "rp-year";
-
-            const selectedYear = window.__reportsYear || currentYear;
-            const yearStr = String(selectedYear);
-
-            const yearPayments = payments.filter(p => safeDateStr(p.date).startsWith(yearStr));
-
-            const totalsByContractor = {};
-            yearPayments.forEach(p => {
-                const cid = p.contractorId || "unknown";
-                totalsByContractor[cid] = (totalsByContractor[cid] || 0) + (Number.parseFloat(p.amount) || 0);
-            });
-
-            const rows = Object.entries(totalsByContractor)
-                .map(([cid, total]) => {
-                    const c = contractors.find(x => x.id === cid);
-                    const name = c ? (c.businessName || "Unnamed Contractor") : "Unknown";
-                    const hasFiles = !!(c && (c.w9OnFile || (c.files && c.files.length)));
-                    const eligible1099 = total >= 600;
-                    return { cid, name, total, hasFiles, eligible1099 };
-                })
-                .sort((a, b) => b.total - a.total);
-
-            const totalPaid = rows.reduce((acc, r) => acc + r.total, 0);
-            const eligibleCount = rows.filter(r => r.eligible1099).length;
-
-            const missingW9List = contractors
-                .filter(c => !(c.w9OnFile || (c.files && c.files.length)))
-                .slice()
-                .sort((a, b) => (a.businessName || "").localeCompare((b.businessName || "")));
-
-            container.innerHTML = `
-                <div class="no-print flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-                    <div>
-                        <h3 class="text-xl font-bold text-slate-800">Financial Reports</h3>
-                        <p class="text-sm text-slate-500">1099 totals & compliance overview.</p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-0">
-                        <div class="bg-white border border-slate-200 rounded-lg px-3 py-2 flex items-center gap-0 shadow-sm">
-                            <i data-lucide="calendar" class="w-4 h-4 text-slate-500"></i>
-                            <select id="${yearSelectId}" class="text-sm font-bold text-slate-700 bg-transparent outline-none">
-                                ${[currentYear, currentYear-1, currentYear-2].map(y => `<option value="${y}" ${y === selectedYear ? "selected" : ""}>${y}</option>`).join("")}
-                            </select>
-                        </div>
-                        <button onclick="window.print()" class="bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-3 py-2 rounded-lg font-bold flex items-center gap-0 shadow-sm text-xs md:text-sm">
-                            <i data-lucide="printer" class="w-4 h-4"></i> Print
-                        </button>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                        <div class="p-3 bg-green-100 text-green-700 rounded-full"><i data-lucide="dollar-sign" class="w-6 h-6"></i></div>
-                        <div>
-                            <p class="text-xs font-bold text-slate-500 uppercase">Total Paid (${selectedYear})</p>
-                            <p class="text-2xl font-bold text-slate-800">${money(totalPaid)}</p>
-                        </div>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                        <div class="p-3 bg-purple-100 text-purple-700 rounded-full"><i data-lucide="file-text" class="w-6 h-6"></i></div>
-                        <div>
-                            <p class="text-xs font-bold text-slate-500 uppercase">1099 Eligible (≥ $600)</p>
-                            <p class="text-2xl font-bold text-slate-800">${eligibleCount}</p>
-                        </div>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                        <div class="p-3 bg-red-100 text-red-700 rounded-full"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div>
-                        <div>
-                            <p class="text-xs font-bold text-slate-500 uppercase">Missing W9 / Docs</p>
-                            <p class="text-2xl font-bold text-slate-800">${missingW9List.length}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="p-2 bg-slate-100 text-slate-600 rounded-lg"><i data-lucide="bar-chart-3" class="w-5 h-5"></i></div>
-                                <div>
-                                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">1099 Summary</p>
-                                    <p class="font-bold text-slate-800">${selectedYear}</p>
-                                </div>
-                            </div>
-                            <div class="text-xs text-slate-500">${rows.length} contractor(s)</div>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left">
-                                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-                                    <tr>
-                                        <th class="py-3 px-3">Contractor</th>
-                                        <th class="py-3 px-3">Total</th>
-                                        <th class="py-3 px-3">1099</th>
-                                        <th class="py-3 px-3">Docs</th>
-                                        <th class="py-3 px-3 action-col">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${rows.map(r => `
-                                        <tr class="hover:bg-slate-50">
-                                            <td class="py-3 px-3 font-semibold text-slate-800">${r.name}</td>
-                                            <td class="py-3 px-3 font-bold text-slate-800 whitespace-nowrap">${money(r.total)}</td>
-                                            <td class="py-3 px-3">
-                                                ${r.eligible1099 ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Eligible</span>` : `<span class="bg-slate-100 text-slate-600 px-2 py-1 rounded-full text-xs font-bold">—</span>`}
-                                            </td>
-                                            <td class="py-3 px-3">
-                                                ${r.hasFiles ? `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-bold">On File</span>` : `<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">Missing</span>`}
-                                            </td>
-                                            <td class="py-3 px-3 action-col whitespace-nowrap">
-                                                <button onclick="goToPaymentLedger('${r.cid}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">View Ledger</button>
-                                            </td>
-                                        </tr>
-                                    `).join("") || `<tr><td colspan="5" class="py-10 text-center text-slate-400">No payments found for ${selectedYear}.</td></tr>`}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div class="p-5 border-b border-slate-100 flex items-center gap-3">
-                            <div class="p-2 bg-orange-100 text-orange-700 rounded-lg"><i data-lucide="folder-x" class="w-5 h-5"></i></div>
-                            <div>
-                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Compliance</p>
-                                <p class="font-bold text-slate-800">Missing Documents</p>
-                            </div>
-                        </div>
-                        <div class="p-4 space-y-2 max-h-[420px] overflow-y-auto">
-                            ${missingW9List.map(c => `
-                                <div class="flex items-center justify-between gap-0 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                    <div class="min-w-0">
-                                        <p class="font-bold text-slate-800 truncate">${c.businessName || "Unnamed Contractor"}</p>
-                                        <p class="text-xs text-slate-500 truncate">${c.ein || ""}</p>
-                                    </div>
-                                    <button onclick="openEditModal('${c.id}')" class="text-blue-600 hover:underline text-xs font-bold whitespace-nowrap">Fix</button>
-                                </div>
-                            `).join("") || `<p class="text-center text-slate-400 py-8">All set. No missing documents.</p>`}
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            const yearSelect = document.getElementById(yearSelectId);
-            if (yearSelect) {
-                yearSelect.addEventListener('change', () => {
-                    window.__reportsYear = Number.parseInt(yearSelect.value, 10);
-                    renderReports();
-                });
-            }
-
-            lucide.createIcons();
-        }
-
-        // ----------------------------
-        // USERS & ACCESS (Admin only)
-        // ----------------------------
 
         function toggleContractorSelect() {
             const role = document.getElementById('um-role')?.value;
@@ -1570,14 +1484,24 @@ function grantAccess(isNewLogin) {
             document.getElementById('um-id').value = id || "";
             document.getElementById('um-name').value = user?.name || "";
             document.getElementById('um-email').value = user?.email || "";
-            document.getElementById('um-pass').value = user?.password ? atob(user.password) : "";
+
+            // Password is only stored for legacy users (not recommended). For Firebase users, leave blank.
+            document.getElementById('um-pass').value = (user?.authProvider === 'legacy' && user?.password) ? atob(user.password) : "";
             document.getElementById('um-role').value = user?.role || "employee";
+
+            const access = Array.isArray(user?.companyAccess)
+                ? user.companyAccess.map(normalizeCompanyKey)
+                : (user?.companyKey ? [normalizeCompanyKey(user.companyKey)] : [activeCompanyKey]);
+
+            document.getElementById('um-access-hvac').checked = access.includes('hvac');
+            document.getElementById('um-access-smart').checked = access.includes('smart');
+
+            document.getElementById('um-uid').value = (user?.uid || (user?.authProvider === 'firebase' ? user?.id : "") || "");
 
             // populate contractor link list
             const select = document.getElementById('um-contractor-link');
             const selectedId = (user && user.role === 'contractor') ? (user.linkedContractorId || "") : "";
             populateContractorSelect(select, { includeAll: false, selectedId });
-            // include empty option at top
             select.insertAdjacentHTML('afterbegin', `<option value="">Select Contractor...</option>`);
             select.value = selectedId || "";
 
@@ -1591,9 +1515,10 @@ function grantAccess(isNewLogin) {
         function renderUsers() {
             const container = document.getElementById('content-area');
 
-            if (!currentUser || currentUser.role !== 'admin') {
+            const isAdmin = !!(currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
+
+            if (!isAdmin) {
                 container.innerHTML = `
-                ${migrateBox}
 <div class="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
                     <i data-lucide="shield-alert" class="w-10 h-10 mx-auto mb-3 text-slate-400"></i>
                     <p class="font-bold text-slate-800 mb-1">Access Restricted</p>
@@ -1602,8 +1527,24 @@ function grantAccess(isNewLogin) {
                 lucide.createIcons();
                 return;
             }
+const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
+            const showCompanySettings = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
+            const companySettingsBox = showCompanySettings ? `
+                <div class="bg-white border border-slate-200 rounded-xl p-5 mb-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <div class="flex items-center gap-2 text-slate-800 font-extrabold">
+                                <i data-lucide="settings" class="w-5 h-5"></i>
+                                <span>Company Branding</span>
+                            </div>
+                            <p class="text-sm text-slate-600 mt-1">
+                                Update the company display names and logo filenames directly from the app.
+                            </p>
+                        </div>
+                        <button onclick="openCompanySettingsModal()" class="px-4 py-2 rounded-lg bg-slate-900 text-white font-bold hover:bg-slate-800">Open Settings</button>
+                    </div>
+                </div>` : ``;
 
-            const showMigration = !!(currentUser && currentUser.role === 'admin' && (currentUser.companyKey === 'all' || currentUser.canSwitchCompany === true));
             const migrateBox = showMigration ? `
                 <div class="bg-white border border-amber-200 rounded-xl p-5 mb-4">
                     <div class="flex items-start justify-between gap-4">
@@ -1676,6 +1617,8 @@ function grantAccess(isNewLogin) {
                         </button>
                     </div>
                 </div>
+
+                ${migrateBox}${companySettingsBox}
 
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="overflow-x-auto">
@@ -1957,8 +1900,20 @@ function grantAccess(isNewLogin) {
         // ----------------------------
 
         async function copyLink() {
-            const base = window.location.origin + window.location.pathname;
-            const link = base + "?mode=onboard&company=" + encodeURIComponent(activeCompanyKey);
+            const base = (() => {
+                // Ensure base directory ends with "/"
+                let p = window.location.pathname;
+                // If served as /index.html, strip it
+                if (p.endsWith("/index.html")) p = p.replace("/index.html", "/");
+                if (!p.endsWith("/")) p += "/";
+                return window.location.origin + p;
+            })();
+
+            const landing = (activeCompanyKey === "smart") ? "onboard-smart.html" : "onboard-hvac.html";
+            const link = base + landing;
+
+            openLinkModal(link);
+
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     await navigator.clipboard.writeText(link);
@@ -1972,6 +1927,121 @@ function grantAccess(isNewLogin) {
                     document.body.removeChild(tmp);
                     showToast("Onboarding link copied");
                 }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        
+        function openCompanySettingsModal() {
+            try {
+                const isSuper = !!(currentUser && (currentUser.role === "super_admin" || currentUser.isSuperAdmin === true));
+                if (!isSuper) { showToast("Access denied", "Only super admins can change company branding.", "error"); return; }
+
+                const hvac = getCompanyMeta("hvac");
+                const smart = getCompanyMeta("smart");
+
+                const hvacLabel = document.getElementById("cs-hvac-label");
+                const hvacLogo = document.getElementById("cs-hvac-logo");
+                const smartLabel = document.getElementById("cs-smart-label");
+                const smartLogo = document.getElementById("cs-smart-logo");
+
+                if (hvacLabel) hvacLabel.value = hvac.label || "D2 HVAC Solutions";
+                if (hvacLogo) hvacLogo.value = hvac.logo || "logo-D2-HVAC-Solutions-preto.png";
+                if (smartLabel) smartLabel.value = smart.label || "D2 Smart Home";
+                if (smartLogo) smartLogo.value = smart.logo || "logo-D2-SmartHome-preto.png";
+
+                const modal = document.getElementById("company-settings-modal");
+                if (modal) {
+                    modal.classList.remove("hidden");
+                    modal.classList.add("flex");
+                }
+                lucide.createIcons();
+            } catch (e) {
+                console.error(e);
+                showToast("Error", "Could not open company settings.", "error");
+            }
+        }
+
+        function closeCompanySettingsModal() {
+            const modal = document.getElementById("company-settings-modal");
+            if (modal) {
+                modal.classList.add("hidden");
+                modal.classList.remove("flex");
+            }
+        }
+
+        async function saveCompanySettings() {
+            try {
+                const isSuper = !!(currentUser && (currentUser.role === "super_admin" || currentUser.isSuperAdmin === true));
+                if (!isSuper) { showToast("Access denied", "Only super admins can change company branding.", "error"); return; }
+
+                const hvacLabel = (document.getElementById("cs-hvac-label")?.value || "").trim();
+                const hvacLogo  = (document.getElementById("cs-hvac-logo")?.value || "").trim();
+                const smartLabel = (document.getElementById("cs-smart-label")?.value || "").trim();
+                const smartLogo  = (document.getElementById("cs-smart-logo")?.value || "").trim();
+
+                const updates = {
+                    hvac: { label: hvacLabel || "D2 HVAC Solutions", logo: hvacLogo || "logo-D2-HVAC-Solutions-preto.png" },
+                    smart:{ label: smartLabel || "D2 Smart Home",  logo: smartLogo || "logo-D2-SmartHome-preto.png" }
+                };
+
+                await db.collection("companies").doc("hvac").set(updates.hvac, { merge: true });
+                await db.collection("companies").doc("smart").set(updates.smart, { merge: true });
+
+                // refresh overrides and UI branding
+                await loadCompanyOverrides();
+                applyCompanyBranding();
+
+                closeCompanySettingsModal();
+                showToast("Saved", "Company branding updated.", "success");
+            } catch (e) {
+                console.error(e);
+                showToast("Error", e?.message || "Could not save company settings.", "error");
+            }
+        }
+
+function openLinkModal(link) {
+            const modal = document.getElementById("link-modal");
+            const input = document.getElementById("link-modal-input");
+            if (input) input.value = link;
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.classList.add("flex");
+            }
+            // Ensure branding is correct
+            try { applyCompanyBranding(); } catch(e) {}
+            try { lucide.createIcons(); } catch(e) {}
+        }
+
+        function closeLinkModal() {
+            const modal = document.getElementById("link-modal");
+            if (modal) {
+                modal.classList.add("hidden");
+                modal.classList.remove("flex");
+            }
+        }
+
+        async function copyLinkFromModal() {
+            const input = document.getElementById("link-modal-input");
+            const link = input ? input.value : "";
+            if (!link) return;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(link);
+                } else {
+                    const tmp = document.createElement('input');
+                    tmp.value = link;
+                    document.body.appendChild(tmp);
+                    tmp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tmp);
+                }
+                showToast("Link copied");
+            } catch(e) {
+                prompt("Copy this onboarding link:", link);
+            }
+        }
             } catch (e) {
                 console.error(e);
                 prompt("Copy this onboarding link:", link);
