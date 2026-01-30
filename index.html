@@ -610,7 +610,7 @@ let storage = null;
         async function handleLogin() {
             const emailInput = document.getElementById('email').value.trim();
             const email = emailInput.toLowerCase();
-            const pass = document.getElementById('password').value.trim();
+            const pass = document.getElementById('password').value;
             const errorDiv = document.getElementById('login-error');
             const btn = document.getElementById('btn-login');
 
@@ -619,22 +619,118 @@ let storage = null;
             try {
                 await ensureFirebaseAuth();
 
+                const selectedCompany = normalizeCompanyKey(activeCompanyKey || getSavedCompanyKey());
                 let foundUser = null;
 
-                // Master admins (one per company), with access to switch companies
-                for (const k of Object.keys(COMPANIES)) {
-                    const mc = COMPANIES[k].master;
-                    if (mc && email === mc.user.toLowerCase() && pass === mc.pass) {
-                        foundUser = {
-                            email: mc.user,
-                            role: 'admin',
-                            id: 'master_' + k,
-                            name: mc.name,
-                            companyKey: 'all',
-                            canSwitchCompany: true
-                        };
-                        break;
+                // 1) PRIMARY: Firebase Email/Password auth (supports password reset)
+                try {
+                    const cred = await auth.signInWithEmailAndPassword(email, pass);
+                    const uid = cred.user.uid;
+
+                    async function fetchCompanyUser(companyKey) {
+                        const snap = await db.collection('companies').doc(companyKey).collection('users').doc(uid).get();
+                        return snap.exists ? snap.data() : null;
                     }
+
+                    const meSel = await fetchCompanyUser(selectedCompany);
+                    if (!meSel || meSel.active !== true) {
+                        throw new Error("Access not granted for this company. Contact an admin.");
+                    }
+
+                    const role = (meSel.role || 'user');
+                    const name = (meSel.name || email);
+
+                    // Can switch company only if admin in both
+                    let canSwitchCompany = false;
+                    if (role === 'admin') {
+                        const other = selectedCompany === 'hvac' ? 'smart' : 'hvac';
+                        const meOther = await fetchCompanyUser(other);
+                        if (meOther && meOther.active === true && (meOther.role || '') === 'admin') {
+                            canSwitchCompany = true;
+                        }
+                    }
+
+                    foundUser = {
+                        email,
+                        role,
+                        id: uid,
+                        uid,
+                        name,
+                        companyKey: selectedCompany,
+                        canSwitchCompany,
+                        authProvider: 'firebase'
+                    };
+                } catch (firebaseLoginErr) {
+                    // 2) FALLBACK (legacy): local Firestore credentials (keeps older accounts working)
+                    // NOTE: Password reset does not apply to legacy accounts.
+                    // Master admins (one per company), with access to switch companies
+                    for (const k of Object.keys(COMPANIES)) {
+                        const mc = COMPANIES[k].master;
+                        if (mc && email === mc.user.toLowerCase() && pass === mc.pass) {
+                            foundUser = {
+                                email: mc.user,
+                                role: 'admin',
+                                id: 'master_' + k,
+                                name: mc.name,
+                                companyKey: 'all',
+                                canSwitchCompany: true,
+                                authProvider: 'legacy'
+                            };
+                        }
+                    }
+
+                    if (!foundUser) {
+                        const isAIPreview = typeof __app_id !== 'undefined';
+                        const usersCollection = isAIPreview
+                            ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users')
+                            : db.collection('app_users');
+
+                        const snapshot = await usersCollection
+                            .where('email', '==', email)
+                            .where('active', '==', true)
+                            .limit(1)
+                            .get();
+
+                        if (!snapshot.empty) {
+                            const doc = snapshot.docs[0];
+                            const data = doc.data();
+                            if ((data.password || '') === pass) {
+                                foundUser = { ...data, id: doc.id, authProvider: 'legacy' };
+                            }
+                        }
+
+                        if (!foundUser) {
+                            // Keep the same UX message
+                            throw new Error('Invalid email or password.');
+                        }
+                    }
+                }
+
+                // Successful login
+                currentUser = foundUser;
+
+                // User initials
+                const baseName = (currentUser.name || currentUser.email || '').trim();
+                const initials = baseName.includes("@")
+                    ? baseName.substring(0, 2).toUpperCase()
+                    : baseName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                document.getElementById('user-initials-display').textContent = initials;
+
+                saveCompanyToStorage();
+                applyCompanyBranding();
+                saveSession();
+
+                grantAccess(true);
+
+            } catch (err) {
+                console.error(err);
+                errorDiv.textContent = err.message || "Login failed.";
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.textContent = "Log In"; btn.disabled = false;
+            }
+        }
+
                 }
 
                 // Regular users in the shared DB
