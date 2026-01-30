@@ -1,0 +1,2136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>D2 Contractors - Contractor Manager</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-storage-compat.js"></script>
+
+    <style>
+
+        /* Print header base (hidden on screen) */
+        .print-header { display: none; }
+        .print-header-inner { display: flex; align-items: center; gap: 12px; }
+        .print-header-logo { width: 46px; height: 46px; object-fit: contain; }
+        .print-header-title { font-weight: 800; font-size: 14px; color: #0f172a; line-height: 1.1; }
+        .print-header-company { font-weight: 700; font-size: 12px; color: #334155; margin-top: 2px; }
+        @media print {
+            .print-header {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                padding: 10px 0;
+                background: white;
+                border-bottom: 1px solid #e2e8f0;
+                z-index: 9999;
+            }
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .drag-active { border-color: #2563eb !important; background-color: #eff6ff !important; }
+
+        @media print {
+            @page { margin: 1.5cm; size: auto; }
+            body { background: white; color: black; }
+            /* Print header (company context) */
+            #print-header { display: block !important; }
+            #main-content { padding-top: 70px !important; }
+
+            #sidebar, #login-screen, .no-print, #edit-c-modal, #user-modal, #edit-payment-modal, #public-onboard-view, #mobile-overlay, #mobile-menu-btn { display: none !important; }
+            #main-content { margin: 0; padding: 0; width: 100%; height: auto; overflow: visible; }
+            .card { box-shadow: none; border: none; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; }
+            thead { display: table-header-group; }
+            tr { page-break-inside: avoid; }
+            th { background-color: #f3f4f6 !important; color: #000 !important; font-weight: bold; border-bottom: 1px solid #000; padding: 8px 4px; text-align: left; -webkit-print-color-adjust: exact; }
+            td { border-bottom: 1px solid #ddd; padding: 8px 4px; }
+            .print-header { display: flex !important; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 20px; }
+            .print-logo { max-height: 80px; width: auto; margin-bottom: 10px; }
+            .print-title { font-size: 24px; font-weight: bold; text-transform: uppercase; color: #000; }
+            .print-meta { font-size: 12px; color: #444; margin-top: 5px; }
+            .total-row { font-weight: bold; background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
+            .action-col { display: none !important; }
+        }
+        .print-header { display: none; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans h-screen flex overflow-hidden relative">
+    <!-- Company header for print + quick context -->
+    <div id="print-header" class="print-header">
+        <div class="print-header-inner">
+            <img id="print-header-logo" src="" alt="Company logo" class="print-header-logo" />
+            <div class="print-header-text">
+                <div class="print-header-title">D2 Contractors</div>
+                <div id="print-header-company" class="print-header-company">Company</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onboarding link modal -->
+    <div id="link-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 no-print">
+        <div class="absolute inset-0 bg-black/40" onclick="closeLinkModal()"></div>
+        <div class="relative bg-white w-full max-w-lg rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <img id="link-modal-logo" src="" alt="Company logo" class="w-10 h-10 object-contain" />
+                    <div>
+                        <div class="text-sm font-bold text-slate-900">Onboarding Link</div>
+                        <div id="link-modal-company" class="text-xs text-slate-500">Company</div>
+                    </div>
+                </div>
+                <button onclick="closeLinkModal()" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-3">
+                <div class="text-sm text-slate-600">
+                    This link is locked to the selected company workspace.
+                </div>
+                <div class="flex items-center gap-2">
+                    <input id="link-modal-input" readonly class="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm" />
+                    <button onclick="copyLinkFromModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm">Copy</button>
+                </div>
+                <div class="text-xs text-slate-500">
+                    Tip: When sent via WhatsApp/iMessage, the preview will show the company logo.
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- MOBILE OVERLAY BACKDROP -->
+    <div id="mobile-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-slate-900/50 z-40 hidden md:hidden backdrop-blur-sm transition-opacity"></div>
+
+    <!-- PUBLIC ONBOARDING VIEW -->
+    <div id="public-onboard-view" class="fixed inset-0 z-[60] bg-slate-100 overflow-y-auto hidden">
+        <div class="min-h-screen flex flex-col items-center justify-center p-4">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 sm:p-8 border border-slate-200">
+                <div class="flex flex-col items-center mb-8 border-b border-slate-100 pb-6">
+                    <img id="logo-public" src="logo-D2-Group-preto.png" alt="D2 Logo" class="w-32 sm:w-40 mb-4 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+                    <div class="w-16 h-16 bg-blue-600 rounded-xl hidden items-center justify-center text-white mx-auto">
+                        <i data-lucide="building-2" class="w-10 h-10"></i>
+                    </div>
+                    <h1 class="text-xl sm:text-2xl font-bold text-slate-800 mt-4 text-center">Contractor Registration</h1>
+                    <p class="text-slate-500 text-center mt-2 text-sm">Please fill out your details below.</p>
+                </div>
+                <form id="public-form" class="space-y-6" onsubmit="event.preventDefault(); return false;">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Business Name <span class="text-red-500">*</span></label><input type="text" id="pb-name" required placeholder="Business Name" class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contact Person</label><input type="text" id="pb-contact" placeholder="Optional" class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">EIN / SSN</label><input type="text" id="pb-ein" placeholder="Optional" class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50 font-mono"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" id="pb-email" placeholder="Optional" class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label><input type="text" id="pb-phone" placeholder="Optional" class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Address</label><input type="text" id="pb-address" placeholder="Optional" class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                    </div>
+                    <div class="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                        <label class="block text-sm font-bold text-blue-900 mb-3">Upload Document (PDF or Photo)</label>
+                        <input type="file" id="pb-file" accept="image/*,application/pdf" class="block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-6 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer bg-white rounded-lg border border-blue-100">
+                        <p class="text-xs text-blue-400 mt-2">You can upload a PDF document or a photo.</p>
+                    </div>
+                    <button type="button" id="btn-public-submit" onclick="handlePublicSubmit()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-black shadow-lg">Submit Registration</button>
+                </form>
+                <div id="public-success" class="hidden text-center py-12">
+                    <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6"><i data-lucide="check" class="w-10 h-10"></i></div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">Registration Successful!</h2>
+                    <p class="text-slate-500">Thank you. Your information has been securely received by D2 Contractors.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+            <div class="flex flex-col items-center mb-6">
+                <div class="w-32 mb-6"><img id="logo-login" src="logo-D2-Group-preto.png" alt="D2 Logo" class="w-full h-auto object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"><div class="w-16 h-16 bg-blue-600 rounded-xl hidden items-center justify-center text-white mx-auto"><i data-lucide="building-2" class="w-10 h-10"></i></div></div>
+                <h1 class="text-2xl font-bold text-slate-800 text-center">D2 Contractors</h1>
+                <p id="login-subtitle" class="text-slate-500 text-sm mt-1">Payment & Compliance Control</p>
+            <div id="company-picker-login" class="mt-5 grid grid-cols-2 gap-3">
+                <button type="button" onclick="selectCompany('hvac', true)" id="btn-company-hvac" class="group flex items-center justify-center gap-0 border border-slate-200 rounded-xl py-2 px-3 hover:bg-slate-50 transition"><img id="logo-hvac-mini" src="logo-D2-HVAC-Solutions-preto.png" alt="D2 HVAC" class="h-7 object-contain" onerror="this.style.display='none'">
+                </button>
+                <button type="button" onclick="selectCompany('smart', true)" id="btn-company-smart" class="group flex items-center justify-center gap-0 border border-slate-200 rounded-xl py-2 px-3 hover:bg-slate-50 transition">
+                    <img id="logo-smart-mini" src="logo-D2-SmartHome-preto.png" alt="D2 Smart" class="h-7 object-contain" onerror="this.style.display='none'">
+                </button>
+            </div>
+            <p class="mt-2 text-[11px] text-slate-400 text-center">Select the company workspace.</p>
+
+            </div>
+            <form id="login-form" class="space-y-4" onsubmit="event.preventDefault(); return false;">
+                <div class="relative"><input type="email" id="email" autocapitalize="none" autocomplete="email" class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Email" required><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="mail" class="w-5 h-5"></i></div></div>
+                <div class="relative">
+                    <input type="password" id="password" autocapitalize="none" class="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Password" required>
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="lock" class="w-5 h-5"></i></div>
+                    <button type="button" onclick="toggleLoginPassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 transition-colors z-10 cursor-pointer" style="min-width: 40px; justify-content: center;"><i id="icon-show" data-lucide="eye" class="w-5 h-5"></i><i id="icon-hide" data-lucide="eye-off" class="w-5 h-5 hidden"></i></button>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button type="button" onclick="handleForgotPassword()" class="text-sm text-blue-600 hover:underline">Forgot password?</button>
+                </div>
+<div id="login-error" class="text-red-500 text-sm text-center hidden bg-red-50 p-2 rounded">Invalid credentials.</div>
+                <div id="login-info" class="text-green-700 text-sm text-center hidden bg-green-50 p-2 rounded"></div>
+
+                <button type="button" id="btn-login" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all shadow-lg active:scale-95">Sign In</button>
+            </form>
+            <div class="mt-6 text-center text-xs text-slate-400">© 2026 D2 Contractors</div>
+        </div>
+    </div>
+
+    <!-- ADD/EDIT USER MODAL -->
+    <div id="user-modal" class="fixed inset-0 z-50 bg-slate-900/50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <h3 id="um-title" class="font-bold text-xl text-slate-800 mb-4">Manage User</h3>
+            <form id="user-form" class="space-y-4" onsubmit="event.preventDefault(); return false;">
+                <input type="hidden" id="um-id">
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Name</label><input type="text" id="um-name" required class="w-full p-2 border border-slate-300 rounded" placeholder="e.g. John Doe"></div>
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" id="um-email" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label><input type="text" id="um-pass" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="New Password"></div>
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label><select id="um-role" onchange="toggleContractorSelect()" class="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"><option value="admin">Admin</option><option value="employee">Employee</option><option value="contractor">Contractor (Portal)</option></select></div>
+                <div id="um-contractor-div" class="hidden"><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Link to Contractor Profile</label><select id="um-contractor-link" class="w-full p-2 bg-white border border-slate-300 rounded"><option value="">Select Contractor...</option></select></div>
+                <div class="flex justify-end gap-0 mt-4"><button type="button" onclick="closeUserModal()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button type="button" onclick="handleSaveUser()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">Save</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- EDIT CONTRACTOR MODAL (MULTI-FILE & RENAME & DRAG DROP) -->
+    <div id="edit-c-modal" class="fixed inset-0 z-40 bg-slate-900/50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                <div class="flex items-center gap-3"><div class="bg-blue-100 text-blue-600 p-2 rounded-lg"><i data-lucide="folder-open" class="w-6 h-6"></i></div><div><h3 class="font-bold text-xl text-slate-800">Contractor Details</h3><p class="text-xs text-slate-500">Edit & Manage Files</p></div></div>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 p-2"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form id="edit-c-form" class="p-6 space-y-5" onsubmit="event.preventDefault(); return false;">
+                <input type="hidden" id="ec-id">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="ec-name" required placeholder="Business Name" class="w-full p-2 border rounded border-slate-300">
+                    <input type="text" id="ec-contact" placeholder="Contact Person" class="w-full p-2 border rounded border-slate-300">
+                    <input type="text" id="ec-ein" placeholder="EIN" class="w-full p-2 border rounded border-slate-300 bg-slate-50 font-mono">
+                    <input type="email" id="ec-email" placeholder="Email" class="w-full p-2 border rounded border-slate-300">
+                    <input type="text" id="ec-phone" placeholder="Phone" class="w-full p-2 border rounded border-slate-300">
+                    <input type="text" id="ec-address" required placeholder="Address" class="w-full p-2 border rounded border-slate-300">
+                </div>
+                <!-- FILE MANAGEMENT SECTION -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-3">Documents Folder</label>
+                    <div id="ec-file-list" class="space-y-2 mb-4"></div>
+                    <div id="ec-drop-zone" class="bg-white p-4 rounded-lg border-2 border-dashed border-slate-300 transition-colors flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50 relative group">
+                        <i data-lucide="upload" class="w-6 h-6 text-slate-400 mb-2 group-hover:text-blue-500"></i>
+                        <p class="text-xs font-bold text-blue-600 mb-1">+ Add Document</p>
+                        <p class="text-[10px] text-slate-400 mb-2">Drag & Drop or Click</p>
+                        <div class="flex flex-col gap-0 w-full max-w-xs z-10">
+                            <input type="text" id="ec-new-filename" placeholder="File Name (e.g. Insurance)" class="text-sm p-1.5 border rounded w-full">
+                        </div>
+                        <input type="file" id="ec-new-file" accept="image/*,application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <p id="ec-file-name-display" class="text-xs font-mono text-slate-600 mt-2 hidden bg-white px-2 py-1 rounded border border-blue-200 z-20 relative"></p>
+                    </div>
+                </div>
+                <div class="flex justify-between pt-4 border-t border-slate-100">
+                    <button type="button" onclick="handleDeleteFromModal()" class="text-red-500 text-sm font-bold flex items-center gap-0"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete Contractor</button>
+                    <div class="flex gap-0"><button type="button" onclick="closeEditModal()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button type="button" id="btn-update-c" onclick="handleUpdateContractor()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700 shadow-md">Save Changes</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- EDIT PAYMENT MODAL -->
+    <div id="edit-payment-modal" class="fixed inset-0 z-50 bg-slate-900/50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <h3 class="font-bold text-xl text-slate-800 mb-4">Edit Payment</h3>
+            <form id="edit-payment-form" class="space-y-4" onsubmit="event.preventDefault(); return false;">
+                <input type="hidden" id="ep-id">
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label><input type="date" id="ep-date" required class="w-full p-2 border border-slate-300 rounded"></div>
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contractor</label><select id="ep-contractor" required class="w-full p-2 bg-white border border-slate-300 rounded"></select></div>
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Amount ($)</label><input type="number" step="0.01" id="ep-amount" required class="w-full p-2 border border-slate-300 rounded"></div>
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Method</label><select id="ep-method" class="w-full p-2 bg-white border border-slate-300 rounded"><option>Check</option><option>ACH</option><option>Zelle</option><option>Cash</option><option>Credit Card</option></select></div>
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Memo</label><input type="text" id="ep-memo" class="w-full p-2 border border-slate-300 rounded"></div>
+                <div class="flex justify-between pt-4 mt-2 border-t border-slate-100">
+                     <button type="button" onclick="handleDeletePaymentFromModal()" class="text-red-500 text-sm font-bold flex items-center gap-0"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
+                    <div class="flex gap-0"><button type="button" onclick="closeEditPaymentModal()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button type="button" id="btn-update-p" onclick="handleUpdatePayment()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">Save</button></div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-300 flex flex-col transform transition-transform duration-300 -translate-x-full md:translate-x-0 md:static md:h-screen hidden">
+        <div class="p-6 border-b border-slate-800 flex items-center gap-3">
+             <div class="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center"><img id="logo-sidebar" src="logo-D2-SmartHome-preto.png" alt="Logo" class="max-w-full max-h-full" onerror="this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\'building-2\' class=\'text-blue-600\'></i>'"></div>
+            <div><h1 class="font-bold text-white leading-tight">D2 Contractors</h1><p id="company-name-display" class="text-[10px] text-emerald-400 uppercase tracking-widest font-bold">Company</p><p id="user-role-display" class="text-[10px] text-blue-400 uppercase tracking-widest font-bold">Loading...</p></div>
+        </div>
+        <nav id="nav-container" class="flex-1 p-4 space-y-2 overflow-y-auto"></nav>
+        <div class="p-4 border-t border-slate-800">
+            <div class="flex items-center gap-3 mb-4">
+                <div id="user-initials-display" class="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs uppercase"><i data-lucide="user"></i></div>
+                <div><p id="user-name-display" class="text-xs font-bold text-white truncate w-32">User</p><p class="text-[10px] text-slate-500">Logged In</p></div>
+            </div>
+            <button onclick="logout()" class="w-full flex items-center justify-center gap-0 text-xs text-red-400 hover:text-red-300 transition-colors"><i data-lucide="log-out" class="w-3 h-3"></i> Sign Out</button>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content" class="flex-1 flex flex-col h-full overflow-y-auto hidden bg-slate-100">
+        <header class="bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex justify-between items-center sticky top-0 z-20 no-print shadow-sm">
+            <div class="flex items-center gap-3">
+                <button onclick="toggleMobileMenu()" class="md:hidden text-slate-500 hover:text-slate-800 p-1"><i data-lucide="menu" class="w-6 h-6"></i></button>
+                <h2 id="page-title" class="text-lg md:text-xl font-bold text-slate-800 truncate">Dashboard</h2>
+            </div>
+            
+            <div class="flex items-center gap-0">
+                <div id="header-company-pill" class="hidden md:flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg">
+                    <img id="header-company-logo" src="" alt="Company logo" class="w-5 h-5 object-contain" />
+                    <span id="header-company-label" class="text-xs font-bold text-slate-700">Company</span>
+                </div>
+                <select id="company-switch" class="hidden text-xs font-bold bg-white border border-slate-300 rounded-lg px-2 py-2 outline-none" onchange="handleCompanySwitch(this.value)">
+                    <option value="hvac">D2 HVAC</option>
+                    <option value="smart">D2 Smart</option>
+                </select>
+                <div class="text-xs md:text-sm text-slate-500" id="current-date"></div>
+            </div>
+
+        </header>
+        <div id="content-area" class="p-4 md:p-8 max-w-7xl mx-auto w-full"></div>
+    </main>
+
+    <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 transition-transform duration-300 z-[70] flex items-center gap-3"><i data-lucide="check-circle" class="text-green-400 w-5 h-5"></i><span id="toast-msg">Success</span></div>
+
+    <!-- SCRIPTS -->
+    <script>
+        
+        const COMPANIES = {
+            hvac: {
+                key: "hvac",
+                label: "D2 HVAC Solutions",
+                shortLabel: "HVAC",
+                logo: "logo-D2-HVAC-Solutions-preto.png"},
+            smart: {
+                key: "smart",
+                label: "D2 Smart Solutions",
+                shortLabel: "SMART",
+                logo: "logo-D2-SmartHome-preto.png"}
+        };
+
+        // Single database base (D2 HVAC) for all data; company segregation via companyKey field.
+        const firebaseConfig = {
+  apiKey: "AIzaSyDeX6K21E7LaQ1FPlI6rKuPVJEzscGDzxo",
+  authDomain: "d2-hvac-w9.firebaseapp.com",
+  projectId: "d2-hvac-w9",
+  storageBucket: "d2-hvac-w9.firebasestorage.app",
+  messagingSenderId: "536339640292",
+  appId: "1:536339640292:web:807253b2ec9ac41f93e1f1"
+};
+
+        const activeConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        firebase.initializeApp(activeConfig);
+
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+// ===== Legacy Source (D2 Smart) - Migration Only =====
+const smartFirebaseConfig = {
+  apiKey: "AIzaSyBo6J5AuNlYN3CvzQiqRh9yIsJ5GFctuOc",
+  authDomain: "d2smart-contractors.firebaseapp.com",
+  projectId: "d2smart-contractors",
+  storageBucket: "d2smart-contractors.firebasestorage.app",
+  messagingSenderId: "630656591552",
+  appId: "1:630656591552:web:8344f5909108dd0bd7ef25",
+  measurementId: "G-TCEGN3T8RM"
+};
+
+let smartSourceApp = null;
+let smartSourceDb = null;
+let smartSourceAuth = null;
+
+async function ensureSmartSourceReady() {
+  try {
+    if (!smartSourceApp) {
+      smartSourceApp = firebase.apps.find(a => a.name === 'smartSource') || firebase.initializeApp(smartFirebaseConfig, 'smartSource');
+      smartSourceDb = firebase.app('smartSource').firestore();
+      smartSourceAuth = firebase.app('smartSource').auth();
+    }
+    // Ensure Smart source auth (anonymous) for reads
+    if (smartSourceAuth && !smartSourceAuth.currentUser) {
+      await smartSourceAuth.signInAnonymously();
+    }
+    return true;
+  } catch (e) {
+    console.warn('Smart source init failed:', e);
+    return false;
+  }
+}
+
+// Ensure we always have a Firebase Auth user (Anonymous) BEFORE any Firestore reads/writes.
+        // This prevents "Missing or insufficient permissions" when Firestore rules require request.auth != null.
+        (async () => {
+            try {
+                if (!auth.currentUser) {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await auth.signInWithCustomToken(__initial_auth_token);
+                    } else {
+                        await auth.signInAnonymously();
+                    }
+                }
+            } catch (e) {
+                console.warn("Auto-auth failed (Anonymous). Check Firebase Auth settings (Anonymous enabled) and Authorized Domains.", e);
+            }
+        })();
+let storage = null;
+        try { if(activeConfig.storageBucket) storage = firebase.storage(); } catch(e) { console.warn(e); }
+
+        let contractors = [];
+        let payments = [];
+        let appUsers = [];
+        let currentUser = null; 
+        let isPublicMode = false;
+        let pendingLedgerFilter = null; 
+        let currentEditingFiles = []; 
+
+        function saveSession() {
+            try {
+                const sess = { user: currentUser, company: activeCompanyKey };
+                localStorage.setItem(SESSION_KEY, JSON.stringify(sess));
+            } catch(e) {}
+        }
+
+        function clearSession() {
+            try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+            try { localStorage.removeItem(COMPANY_KEY_STORAGE); } catch(e) {}
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const APP_MODE = (urlParams.get('mode') || '').toLowerCase();
+        const COMPANY_FROM_URL = urlParams.get('company');
+        const COMPANY_LOCKED_FROM_URL = !!COMPANY_FROM_URL && APP_MODE === 'onboard';
+
+
+        // --- Company workspace (HVAC / SMART) ---
+        const SESSION_KEY = "d2_contractors_session";
+        const COMPANY_KEY_STORAGE = "d2_contractors_company";
+
+        let activeCompanyKey = "hvac";
+
+        function normalizeCompanyKey(v) { return (v && String(v).trim()) ? String(v).trim() : "hvac"; }
+
+        function loadCompanyFromStorage() {
+            try {
+                const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+                if (sess && sess.company) return normalizeCompanyKey(sess.company);
+            } catch(e) {}
+            return normalizeCompanyKey(localStorage.getItem(COMPANY_KEY_STORAGE) || "hvac");
+        }
+
+        function saveCompanyToStorage() {
+            try { localStorage.setItem(COMPANY_KEY_STORAGE, activeCompanyKey); } catch(e) {}
+            try {
+                const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || "null") || {};
+                sess.company = activeCompanyKey;
+                localStorage.setItem(SESSION_KEY, JSON.stringify(sess));
+            } catch(e) {}
+        }
+
+        function canSwitchCompany() {
+            if (COMPANY_LOCKED_FROM_URL) return false;
+            if (!currentUser) return true; // pre-login selection
+            // If companyKey is "all" => can switch. Otherwise locked.
+            return (currentUser.role === "admin" && (currentUser.companyKey === "all" || currentUser.canSwitchCompany === true));
+        }
+
+        function applyCompanyBranding() {
+            const meta = COMPANIES[activeCompanyKey] || COMPANIES.hvac;
+
+            // Company context logos (screen + print + link modal)
+            const headerLogo = document.getElementById("header-company-logo");
+            if (headerLogo) headerLogo.src = meta.logo;
+            const printLogo = document.getElementById("print-header-logo");
+            if (printLogo) printLogo.src = meta.logo;
+            const printCompany = document.getElementById("print-header-company");
+            if (printCompany) printCompany.textContent = meta.label;
+            const linkLogo = document.getElementById("link-modal-logo");
+            if (linkLogo) linkLogo.src = meta.logo;
+            const linkCompany = document.getElementById("link-modal-company");
+            if (linkCompany) linkCompany.textContent = meta.label;
+
+
+            // Logos
+            const GROUP_LOGO = "logo-D2-Group-preto.png";
+            const lp = document.getElementById("logo-public");
+            const ll = document.getElementById("logo-login");
+            const ls = document.getElementById("logo-sidebar");
+            // Top branding should always be D2 Group (app umbrella)
+            if (lp) lp.src = GROUP_LOGO;
+            if (ll) ll.src = GROUP_LOGO;
+            // Sidebar can reflect the active company workspace
+            if (ls) ls.src = meta.logo;
+
+// Labels
+            const companyName = document.getElementById("company-name-display");
+            if (companyName) companyName.textContent = meta.label.toUpperCase();
+
+            const headerLabel = document.getElementById("header-company-label");
+            if (headerLabel) headerLabel.textContent = meta.label;
+
+            // Login picker highlight
+            const bH = document.getElementById("btn-company-hvac");
+            const bS = document.getElementById("btn-company-smart");
+            if (bH && bS) {
+                [bH, bS].forEach(b => b.classList.remove("ring-2","ring-blue-600","border-blue-300","bg-blue-50"));
+                const activeBtn = activeCompanyKey === "smart" ? bS : bH;
+                activeBtn.classList.add("ring-2","ring-blue-600","border-blue-300","bg-blue-50");
+            }
+
+            // Lock company picker in onboarding links
+            const loginPicker = document.getElementById("company-picker-login");
+            if (loginPicker) {
+                if (COMPANY_LOCKED_FROM_URL) loginPicker.classList.add("hidden");
+                else loginPicker.classList.remove("hidden");
+            }
+
+            // Header switcher
+            const switcher = document.getElementById("company-switch");
+            if (switcher) {
+                switcher.value = activeCompanyKey;
+                if (canSwitchCompany() && !COMPANY_LOCKED_FROM_URL) switcher.classList.remove("hidden");
+                else switcher.classList.add("hidden");
+            }
+            const pill = document.getElementById("header-company-pill");
+            if (pill) pill.classList.remove("hidden");
+
+            // Document title
+            document.title = "D2 Contractors - " + meta.label;
+        }
+
+        function selectCompany(key, persist = false) {
+            activeCompanyKey = (key === "smart") ? "smart" : "hvac";
+            if (persist) saveCompanyToStorage();
+            applyCompanyBranding();
+        }
+
+        function handleCompanySwitch(key) {
+            if (!canSwitchCompany()) return;
+            selectCompany(key, true);
+            // Restart listeners with new company scope
+            if (currentUser) startListeners(true);
+        }
+
+        
+        window.onload = function() {
+            lucide.createIcons();
+            if (urlParams.get('mode') === 'onboard') {
+                isPublicMode = true;
+                initPublicMode();
+            } else {
+                setupDragAndDrop('pb-drop-zone', 'pb-file', 'pb-file-name');
+                setupDragAndDrop('nc-drop-zone', 'nc-file', 'nc-file-name');
+                setupDragAndDrop('ec-drop-zone', 'ec-new-file', 'ec-file-name-display');
+                
+                // Restore session (user + company)
+                try {
+                    const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+                    if (sess && sess.user) {
+                        currentUser = sess.user;
+                        if (sess.company) activeCompanyKey = normalizeCompanyKey(sess.company);
+                        grantAccess(false);
+                    } else {
+                        // Pre-login company selection
+                        const companyFromUrl = urlParams.get('company');
+                        activeCompanyKey = companyFromUrl ? normalizeCompanyKey(companyFromUrl) : loadCompanyFromStorage();
+                        saveCompanyToStorage();
+                        applyCompanyBranding();
+                    }
+                } catch(e) {
+                    const companyFromUrl = urlParams.get('company');
+                    activeCompanyKey = companyFromUrl ? normalizeCompanyKey(companyFromUrl) : loadCompanyFromStorage();
+                    saveCompanyToStorage();
+                    applyCompanyBranding();
+                }
+            }
+        };
+
+        function setupDragAndDrop(zoneId, inputId, displayId) {
+            const zone = document.getElementById(zoneId);
+            const input = document.getElementById(inputId);
+            const display = document.getElementById(displayId);
+            if(!zone || !input) return;
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                zone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+            });
+            ['dragenter', 'dragover'].forEach(eventName => zone.addEventListener(eventName, () => zone.classList.add('drag-active'), false));
+            ['dragleave', 'drop'].forEach(eventName => zone.addEventListener(eventName, () => zone.classList.remove('drag-active'), false));
+            zone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                input.files = files;
+                if(files.length > 0 && display) {
+                    display.textContent = "Selected: " + files[0].name;
+                    display.classList.remove('hidden');
+                }
+            });
+            input.addEventListener('change', () => {
+                 if(input.files.length > 0 && display) {
+                    display.textContent = "Selected: " + input.files[0].name;
+                    display.classList.remove('hidden');
+                 }
+            });
+        }
+
+        
+        async function initPublicMode() {
+            const companyFromUrl = urlParams.get('company');
+            activeCompanyKey = companyFromUrl ? normalizeCompanyKey(companyFromUrl) : loadCompanyFromStorage();
+            saveCompanyToStorage();
+            applyCompanyBranding();
+
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('public-onboard-view').classList.remove('hidden');
+
+            await ensureFirebaseAuth();
+        }
+
+
+        // --- SAFE UPLOAD (ERROR TRAP) ---
+        async function uploadFile(file) {
+            const MAX_SIZE = 500 * 1024; 
+            if (storage) {
+                try {
+                    const storageRef = storage.ref();
+                    const fileRef = storageRef.child(`contractors/${Date.now()}_${file.name}`);
+                    const snapshot = await fileRef.put(file);
+                    return await snapshot.ref.getDownloadURL();
+                } catch(e) {
+                    console.warn("Cloud Storage Error:", e);
+                    if (file.size > MAX_SIZE) throw new Error("File too large (" + (file.size/1024).toFixed(1) + "KB). Limit is 500KB if Cloud Storage fails.");
+                }
+            }
+            if (file.size > MAX_SIZE) throw new Error("File too large. Limit is 500KB.");
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+            });
+        }
+
+        function toggleLoginPassword() {
+            const pwdInput = document.getElementById('password');
+            const showIcon = document.getElementById('icon-show');
+            const hideIcon = document.getElementById('icon-hide');
+            if (pwdInput.type === "password") { pwdInput.type = "text"; showIcon.classList.add('hidden'); hideIcon.classList.remove('hidden'); } 
+            else { pwdInput.type = "password"; showIcon.classList.remove('hidden'); hideIcon.classList.add('hidden'); }
+        }
+
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            if (sidebar.classList.contains('-translate-x-full')) { sidebar.classList.remove('-translate-x-full'); overlay.classList.remove('hidden'); } 
+            else { sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); }
+        }
+        async function handleForgotPassword() {
+            const emailInput = document.getElementById('email').value.trim();
+            const email = emailInput.toLowerCase();
+            const errorDiv = document.getElementById('login-error');
+            const infoDiv = document.getElementById('login-info');
+            const btn = document.getElementById('btn-login');
+
+            errorDiv.classList.add('hidden');
+            infoDiv.classList.add('hidden');
+
+            if (!email) {
+                errorDiv.textContent = "Enter your email first, then click 'Forgot password?'.";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            const prevText = btn.textContent;
+            btn.textContent = "Sending reset..."; 
+            btn.disabled = true;
+
+            try {
+                await ensureFirebaseAuth();
+                await firebase.auth().sendPasswordResetEmail(email);
+                infoDiv.textContent = "Password reset email sent. Check your inbox (and spam).";
+                infoDiv.classList.remove('hidden');
+            } catch (err) {
+                const code = (err && err.code) ? err.code : "";
+                let msg = "Unable to send reset email. Please try again.";
+                if (code === "auth/invalid-email") msg = "Invalid email address.";
+                if (code === "auth/user-not-found") msg = "No user found with this email.";
+                if (code === "auth/too-many-requests") msg = "Too many attempts. Please wait a bit and try again.";
+                errorDiv.textContent = msg;
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.textContent = prevText;
+                btn.disabled = false;
+            }
+        }
+
+
+
+        
+        async function handleLogin() {
+            const emailInput = document.getElementById('email').value.trim();
+            const email = emailInput.toLowerCase();
+            const pass = document.getElementById('password').value;
+            const errorDiv = document.getElementById('login-error');
+            const btn = document.getElementById('btn-login');
+
+            btn.textContent = "Verifying..."; btn.disabled = true; errorDiv.classList.add('hidden');
+
+            try {
+                await ensureFirebaseAuth();
+
+                const selectedCompany = normalizeCompanyKey(activeCompanyKey || getSavedCompanyKey());
+                let foundUser = null;
+
+                // 1) PRIMARY: Firebase Email/Password auth (supports password reset)
+                try {
+                    const cred = await auth.signInWithEmailAndPassword(email, pass);
+                    const uid = cred.user.uid;
+
+                    async function fetchCompanyUser(companyKey) {
+                        const snap = await db.collection('companies').doc(companyKey).collection('users').doc(uid).get();
+                        return snap.exists ? snap.data() : null;
+                    }
+
+                    const meSel = await fetchCompanyUser(selectedCompany);
+                    if (!meSel || meSel.active !== true) {
+                        throw new Error("Access not granted for this company. Contact an admin.");
+                    }
+
+                    const role = (meSel.role || 'user');
+                    const name = (meSel.name || email);
+
+                    // Can switch company only if admin in both
+                    let canSwitchCompany = false;
+                    if (role === 'admin') {
+                        const other = selectedCompany === 'hvac' ? 'smart' : 'hvac';
+                        const meOther = await fetchCompanyUser(other);
+                        if (meOther && meOther.active === true && (meOther.role || '') === 'admin') {
+                            canSwitchCompany = true;
+                        }
+                    }
+
+                    foundUser = {
+                        email,
+                        role,
+                        id: uid,
+                        uid,
+                        name,
+                        companyKey: selectedCompany,
+                        canSwitchCompany,
+                        authProvider: 'firebase'
+                    };
+                } catch (firebaseLoginErr) {
+                    // If Firebase login failed for reasons OTHER than invalid credentials,
+                    // surface the real error (e.g., unauthorized-domain, too-many-requests).
+                    const fbCode = (firebaseLoginErr && firebaseLoginErr.code) ? firebaseLoginErr.code : "";
+                    if (fbCode && !["auth/wrong-password","auth/user-not-found","auth/invalid-email"].includes(fbCode)) {
+                        throw firebaseLoginErr;
+                    }
+
+                    // 2) FALLBACK (legacy): local Firestore credentials (keeps older accounts working)
+                    // NOTE: Password reset does not apply to legacy accounts.
+                    // Master admins (one per company), with access to switch companies
+                    for (const k of Object.keys(COMPANIES)) {
+                        const mc = COMPANIES[k].master;
+                        if (mc && email === mc.user.toLowerCase() && pass === mc.pass) {
+                            foundUser = {
+                                email: mc.user,
+                                role: 'admin',
+                                id: 'master_' + k,
+                                name: mc.name,
+                                companyKey: 'all',
+                                canSwitchCompany: true,
+                                authProvider: 'legacy'
+                            };
+                        }
+                    }
+
+                    if (!foundUser) {
+                        const isAIPreview = typeof __app_id !== 'undefined';
+                        const usersCollection = isAIPreview
+                            ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users')
+                            : db.collection('app_users');
+
+                        const snapshot = await usersCollection
+                            .where('email', '==', email)
+                            .where('active', '==', true)
+                            .limit(1)
+                            .get();
+
+                        if (!snapshot.empty) {
+                            const doc = snapshot.docs[0];
+                            const data = doc.data();
+                            if ((data.password || '') === pass) {
+                                foundUser = { ...data, id: doc.id, authProvider: 'legacy' };
+                            }
+                        }
+
+                        if (!foundUser) {
+                            // Keep the same UX message
+                            throw new Error('Invalid email or password.');
+                        }
+                    }
+                }
+
+                // Successful login
+                currentUser = foundUser;
+
+                // User initials
+                const baseName = (currentUser.name || currentUser.email || '').trim();
+                const initials = baseName.includes("@")
+                    ? baseName.substring(0, 2).toUpperCase()
+                    : baseName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                document.getElementById('user-initials-display').textContent = initials;
+
+                saveCompanyToStorage();
+                applyCompanyBranding();
+                saveSession();
+
+                grantAccess(true);
+
+            } catch (err) {
+                console.error(err);
+                errorDiv.textContent = err.message || "Login failed.";
+                errorDiv.classList.remove('hidden');
+            } finally {
+                btn.textContent = "Log In"; btn.disabled = false;
+            }
+        }
+
+function grantAccess(isNewLogin) {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('sidebar').classList.remove('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+            document.getElementById('user-name-display').textContent = currentUser.name || currentUser.email;
+            document.getElementById('user-role-display').textContent = (currentUser.role || 'employee').toUpperCase();
+            document.getElementById('user-initials-display').textContent = (currentUser.name || "User").split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            initApp(isNewLogin);
+        }
+
+        function logout() { clearSession(); window.location.reload(); }
+
+        
+        function getRootRef() {
+            const isAIPreview = typeof __app_id !== 'undefined';
+            return isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data') : db;
+        }
+
+        let _unsubs = [];
+        function clearListeners() {
+            try { _unsubs.forEach(u => u && u()); } catch(e) {}
+            _unsubs = [];
+        }
+
+        async function ensureFirebaseAuth() {
+            try {
+                if (!auth.currentUser) {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await auth.signInWithCustomToken(__initial_auth_token);
+                    } else {
+                        await auth.signInAnonymously();
+                    }
+                }
+            } catch (e) {
+                console.warn('Auth not ready; Firestore may fail with permissions. Check Anonymous Auth + Rules.', e);
+            }
+        }
+
+        async function startListeners(forceRefresh = false) {
+            clearListeners();
+            const root = getRootRef();
+
+            // Contractors
+            const unsubContractors = root.collection('contractors').onSnapshot(s => {
+                const all = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                contractors = all
+                    .map(c => ({ ...c, companyKey: normalizeCompanyKey(c.companyKey) }))
+                    .filter(c => normalizeCompanyKey(c.companyKey) === activeCompanyKey);
+
+                // Contractor name sync
+                if (currentUser && currentUser.role === 'contractor' && currentUser.linkedContractorId) {
+                    const linked = contractors.find(c => c.id === currentUser.linkedContractorId);
+                    if (linked && linked.contactName) {
+                        currentUser.name = linked.contactName;
+                        document.getElementById('user-name-display').textContent = currentUser.name;
+                        const initials = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                        document.getElementById('user-initials-display').textContent = initials;
+                    }
+                }
+                refreshCurrentView();
+            });
+            _unsubs.push(unsubContractors);
+
+            // Payments
+            const unsubPayments = root.collection('payments').onSnapshot(s => {
+                const all = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                payments = all
+                    .map(p => ({ ...p, companyKey: normalizeCompanyKey(p.companyKey) }))
+                    .filter(p => normalizeCompanyKey(p.companyKey) === activeCompanyKey);
+                refreshCurrentView();
+            });
+            _unsubs.push(unsubPayments);
+
+            // Users
+            if (currentUser && currentUser.role === 'admin') {
+                const unsubUsers = root.collection('app_users').onSnapshot(s => {
+                    const all = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    appUsers = all
+                        .map(u => ({ ...u, companyKey: normalizeCompanyKey(u.companyKey) }))
+                        .filter(u => normalizeCompanyKey(u.companyKey) === activeCompanyKey);
+                    if (window.currentView === 'users') renderUsers();
+                });
+                _unsubs.push(unsubUsers);
+            }
+
+            if (forceRefresh) refreshCurrentView();
+        }
+
+        async function initApp(isNewLogin) {
+            await ensureFirebaseAuth();
+
+            document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
+
+            // Enforce company lock for non-all users
+            if (currentUser && currentUser.companyKey && currentUser.companyKey !== 'all') {
+                activeCompanyKey = normalizeCompanyKey(currentUser.companyKey);
+            } else if (!currentUser) {
+                activeCompanyKey = loadCompanyFromStorage();
+            }
+
+            saveCompanyToStorage();
+            applyCompanyBranding();
+
+            buildNavigation();
+            await startListeners(true);
+
+            if (isNewLogin || !window.currentView) {
+                router(currentUser && currentUser.role === 'contractor' ? 'my-profile' : 'dashboard');
+            }
+        }
+
+
+        function buildNavigation() {
+            const nav = document.getElementById('nav-container');
+            nav.innerHTML = '';
+            const role = currentUser.role || 'employee';
+            const createBtn = (id, icon, label, onClick = null) => {
+                const clickFn = onClick ? onClick : `router('${id}'); if(window.innerWidth < 768) toggleMobileMenu();`;
+                return `<button onclick="${clickFn}" id="nav-${id}" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-all text-slate-300"><i data-lucide="${icon}" class="w-5 h-5"></i> ${label}</button>`;
+            };
+            if (role !== 'contractor') {
+                nav.innerHTML += createBtn('dashboard', 'layout-dashboard', 'Dashboard');
+                nav.innerHTML += createBtn('contractors', 'users', 'Contractors');
+                nav.innerHTML += createBtn('payments', 'dollar-sign', 'Payments', "pendingLedgerFilter = null; router('payments'); if(window.innerWidth < 768) toggleMobileMenu();");
+                nav.innerHTML += createBtn('reports', 'file-bar-chart', 'Financial Reports');
+            } else { nav.innerHTML += createBtn('my-profile', 'user', 'My Profile'); }
+            if (role === 'admin') nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
+            lucide.createIcons();
+        }
+
+        function router(view) {
+            window.currentView = view;
+            document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('bg-blue-600', 'text-white', 'shadow-lg'); b.classList.add('hover:bg-slate-800', 'text-slate-300'); });
+            const activeBtn = document.getElementById(`nav-${view}`);
+            if(activeBtn) { activeBtn.classList.add('bg-blue-600', 'text-white', 'shadow-lg'); activeBtn.classList.remove('hover:bg-slate-800', 'text-slate-300'); }
+            document.getElementById('page-title').textContent = { dashboard: 'Overview', contractors: 'Contractor Management', payments: 'Payment Ledger', reports: 'Financial Reports', users: 'User Access Control', 'my-profile': 'My Contractor Portal' }[view] || view;
+            refreshCurrentView();
+        }
+
+        function refreshCurrentView() {
+            const container = document.getElementById('content-area');
+            container.innerHTML = '';
+            const view = window.currentView;
+            if(view === 'dashboard') renderDashboard();
+            else if(view === 'contractors') renderContractors();
+            else if(view === 'payments') renderPayments();
+            else if(view === 'reports') renderReports();
+            else if(view === 'users') renderUsers();
+            else if(view === 'my-profile') renderContractorPortal();
+            lucide.createIcons();
+        }
+
+        // --- RENDERERS ---
+        function renderDashboard() {
+            const container = document.getElementById('content-area');
+            const totalC = contractors.length;
+            const year = new Date().getFullYear();
+            const ytd = payments.filter(p => p.date.startsWith(year)).reduce((acc, curr) => acc + (parseFloat(curr.amount)||0), 0);
+            const w9Count = contractors.filter(c => c.w9OnFile || (c.files && c.files.length > 0)).length;
+            const missingW9 = totalC - w9Count;
+            const recentP = [...payments].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,5);
+            const recentHtml = recentP.map(p => { 
+                const c = contractors.find(cx => cx.id === p.contractorId) || {businessName: 'Unknown'}; 
+                return `<div onclick="goToPaymentLedger('${p.contractorId}')" class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 transition-all cursor-pointer"><div class="flex items-center gap-3"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs border border-slate-200">${c.businessName.substring(0,2).toUpperCase()}</div><div><p class="font-bold text-slate-800 text-xs md:text-sm">${c.businessName}</p><p class="text-[10px] md:text-xs text-slate-500">${p.date}</p></div></div><span class="font-bold text-slate-700 text-sm md:text-base">$${parseFloat(p.amount).toLocaleString()}</span></div>`; 
+            }).join('');
+            container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8"><div onclick="router('contractors')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-blue-100 text-blue-600 rounded-full"><i data-lucide="users"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">Contractors</p><h3 class="text-3xl font-bold text-slate-800">${totalC}</h3></div></div><div onclick="router('payments'); pendingLedgerFilter=null;" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-green-100 text-green-600 rounded-full"><i data-lucide="dollar-sign"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">YTD Payout</p><h3 class="text-3xl font-bold text-slate-800">$${ytd.toLocaleString()}</h3></div></div><div onclick="router('reports')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-purple-100 text-purple-600 rounded-full"><i data-lucide="file-check"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">Files on Record</p><h3 class="text-3xl font-bold text-slate-800">${w9Count} / ${totalC}</h3></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200"><h3 class="font-bold text-lg mb-4 text-slate-800">Recent Transactions</h3><div class="space-y-3">${recentHtml || '<p class="text-slate-400 text-center py-4">No payments yet.</p>'}</div></div><div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200"><div class="flex items-center gap-3 mb-4"><div class="p-2 bg-orange-100 text-orange-600 rounded-lg"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div><h3 class="font-bold text-lg text-slate-800">Pending Compliance</h3></div><div class="space-y-4"><div class="flex justify-between items-center p-3 bg-slate-50 rounded border border-slate-100"><span class="text-sm font-bold text-slate-600">Missing W9 Forms</span><span class="bg-red-100 text-red-600 px-3 py-1 rounded-full font-bold text-xs">${missingW9} Contractors</span></div><button onclick="router('reports')" class="w-full text-center text-blue-600 text-sm font-bold hover:underline">View Compliance Report</button></div></div></div>`;
+            lucide.createIcons();
+        }
+
+        window.goToPaymentLedger = (contractorId) => { pendingLedgerFilter = contractorId; router('payments'); };
+        window.showAddContractorModal = function() {
+            const form = document.getElementById('add-c-form');
+            if(form) { form.classList.remove('hidden'); const nameInput = document.getElementById('nc-name'); if(nameInput) nameInput.focus(); form.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        }
+
+        function renderContractors() {
+             const container = document.getElementById('content-area');
+            container.innerHTML = `<div class="flex flex-col sm:flex-row justify-between mb-6 no-print gap-4"><div class="relative w-full max-w-sm"><i data-lucide="search" class="absolute left-3 top-3 w-5 h-5 text-slate-400"></i><input type="text" id="c-search" onkeyup="filterContractors()" placeholder="Search contractors..." class="pl-10 pr-4 py-2 w-full rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm md:text-base"></div><div class="flex gap-0 flex-wrap"><button onclick="copyLink()" class="flex-1 sm:flex-none bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-3 py-2 rounded-lg font-bold flex items-center justify-center gap-0 shadow-sm transition-colors text-xs md:text-sm"><i data-lucide="share-2" class="w-4 h-4"></i> Link</button><button onclick="showAddContractorModal()" class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold flex items-center justify-center gap-0 shadow-sm transition-colors text-xs md:text-sm"><i data-lucide="plus"></i> Add</button></div></div><div id="add-c-form" class="hidden bg-blue-50 border border-blue-200 p-4 md:p-6 rounded-xl mb-6"><h3 class="font-bold text-blue-900 mb-4">New Contractor Registration</h3><form id="new-c-form" class="grid grid-cols-1 md:grid-cols-2 gap-4" onsubmit="event.preventDefault(); return false;"><input type="text" id="nc-name" placeholder="Business Name *" required class="p-2 rounded border border-slate-300 w-full"><input type="text" id="nc-contact" placeholder="Contact Person" class="p-2 rounded border border-slate-300 w-full"><input type="text" id="nc-ein" placeholder="EIN / SSN *" required class="p-2 rounded border border-slate-300 w-full"><input type="email" id="nc-email" placeholder="Email" class="p-2 rounded border border-slate-300 w-full"><input type="text" id="nc-phone" placeholder="Phone" class="p-2 rounded border border-slate-300 w-full"><input type="text" id="nc-address" placeholder="Full Address *" required class="p-2 rounded border border-slate-300 w-full"><div class="md:col-span-2 bg-white p-3 rounded border border-dashed border-slate-400" id="nc-drop-zone"><i data-lucide="upload-cloud" class="w-8 h-8 text-blue-300 mb-1 mx-auto block"></i><label class="block text-xs font-bold text-slate-500 uppercase mb-2 text-center cursor-pointer">Upload Initial Document (Optional)</label><input type="file" id="nc-file" accept="image/*,.pdf" class="block w-full text-sm text-slate-500"></div><div class="md:col-span-2 flex justify-end gap-0 mt-2"><button type="button" onclick="document.getElementById('add-c-form').classList.add('hidden')" class="px-4 py-2 text-slate-600 hover:bg-white rounded">Cancel</button><button type="button" id="btn-save-c" onclick="handleSaveContractor()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">Save</button></div></form></div><div id="c-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>`;
+            filterContractors(); 
+            // Drag Drop init
+            setupDragAndDrop('nc-drop-zone', 'nc-file', 'nc-file-name');
+            lucide.createIcons();
+        }
+
+        function filterContractors() {
+            const query = document.getElementById('c-search')?.value.toLowerCase() || '';
+            const list = document.getElementById('c-list');
+            if(!list) return;
+            const filtered = contractors.filter(c => (c.businessName || '').toLowerCase().includes(query) || (c.ein || '').includes(query));
+            list.innerHTML = filtered.map(c => `<div onclick='openEditModal("${c.id}")' class="cursor-pointer bg-white p-5 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col justify-between group relative"><div class="absolute top-4 right-4 text-slate-300 group-hover:text-blue-500 transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i></div><div><div class="flex items-center gap-0 mb-2 pr-6"><h3 class="font-bold text-lg text-slate-800">${c.businessName}</h3>${(c.w9OnFile || (c.files && c.files.length > 0)) ? '<i data-lucide="folder-check" class="w-4 h-4 text-green-500"></i>' : ''}</div><div class="space-y-1 text-sm text-slate-500"><p><span class="font-mono bg-slate-100 px-1 rounded text-xs text-slate-600">${c.ein || '-'}</span></p><p>${c.contactName || '-'}</p></div></div><div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400"><span class="truncate max-w-[150px]">${c.address || '-'}</span><span class="text-blue-600 font-semibold group-hover:underline">Manage Files</span></div></div>`).join('');
+            if(filtered.length === 0) list.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400 bg-slate-50 rounded border border-dashed border-slate-300">No contractors found.</div>`;
+            lucide.createIcons();
+        }
+
+        // --- EDIT MODAL LOGIC (MULTI-FILE & RENAME) ---
+        function openEditModal(id) {
+            const c = contractors.find(x => x.id === id); if(!c) return;
+            document.getElementById('ec-id').value = c.id;
+            document.getElementById('ec-name').value = c.businessName || '';
+            document.getElementById('ec-contact').value = c.contactName || '';
+            document.getElementById('ec-ein').value = c.ein || '';
+            document.getElementById('ec-email').value = c.email || '';
+            document.getElementById('ec-phone').value = c.phone || '';
+            document.getElementById('ec-address').value = c.address || '';
+            currentEditingFiles = c.files || [];
+            if(c.w9OnFile && c.w9File && !currentEditingFiles.some(f => f.url === c.w9File)) {
+                currentEditingFiles.push({ name: c.w9FileName || "Original W9", url: c.w9File, date: c.createdAt });
+            }
+            renderFileList();
+            setupDragAndDrop('ec-drop-zone', 'ec-new-file', 'ec-file-name-display');
+            document.getElementById('edit-c-modal').classList.remove('hidden');
+        }
+
+        function renderFileList() {
+            const listContainer = document.getElementById('ec-file-list');
+            if (currentEditingFiles.length === 0) {
+                listContainer.innerHTML = '<p class="text-sm text-slate-400 italic text-center py-2">No files attached yet.</p>';
+            } else {
+                listContainer.innerHTML = currentEditingFiles.map((f, i) => `<div class="flex items-center justify-between bg-white p-2 rounded border border-slate-100"><div class="flex items-center gap-0 overflow-hidden flex-1"><i data-lucide="file-text" class="w-4 h-4 text-blue-500 shrink-0"></i><input type="text" value="${f.name || 'Document'}" onchange="updateFileName(${i}, this.value)" class="text-xs font-bold text-slate-700 border-b border-transparent hover:border-slate-300 focus:border-blue-500 bg-transparent outline-none w-full truncate"></div><div class="flex items-center gap-0 shrink-0"><a href="${f.url}" target="_blank" class="text-blue-600 hover:bg-blue-50 p-1 rounded"><i data-lucide="eye" class="w-4 h-4"></i></a><button type="button" onclick="deleteFileFromList(${i})" class="text-red-500 hover:bg-red-50 p-1 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>`).join('');
+                lucide.createIcons();
+            }
+        }
+        window.updateFileName = function(index, newName) { if(currentEditingFiles[index]) currentEditingFiles[index].name = newName; }
+        window.deleteFileFromList = function(index) { if(!confirm("Remove this file?")) return; currentEditingFiles.splice(index, 1); renderFileList(); }
+
+        // REMOVED 'e' PARAMETER
+        async function handleUpdateContractor() {
+            const btn = document.getElementById('btn-update-c'); btn.disabled = true; btn.textContent = "Saving...";
+            const id = document.getElementById('ec-id').value;
+            const fileInput = document.getElementById('ec-new-file');
+            const newFileName = document.getElementById('ec-new-filename').value;
+
+            try {
+                if(fileInput.files[0]) {
+                    const url = await uploadFile(fileInput.files[0]);
+                    currentEditingFiles.push({
+                        name: newFileName || fileInput.files[0].name,
+                        url: url,
+                        date: new Date().toISOString()
+                    });
+                }
+
+                const isAIPreview = typeof __app_id !== 'undefined';
+                const collectionRef = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('contractors') : db.collection('contractors');
+                
+                await collectionRef.doc(id).update({
+                    businessName: document.getElementById('ec-name').value,
+                    contactName: document.getElementById('ec-contact').value,
+                    ein: document.getElementById('ec-ein').value,
+                    email: document.getElementById('ec-email').value,
+                    phone: document.getElementById('ec-phone').value,
+                    address: document.getElementById('ec-address').value,
+                    files: currentEditingFiles,
+                    w9OnFile: currentEditingFiles.length > 0 
+                });
+
+                closeEditModal(); 
+                showToast("Contractor Updated");
+            } catch(e) { console.error(e); alert("Error saving: " + e.message); }
+            finally { btn.disabled = false; btn.textContent = "Save Changes"; }
+        }
+
+        // REMOVED 'e' PARAMETER
+        async function handleSaveContractor() {
+            const btn = document.getElementById('btn-save-c'); btn.disabled = true; btn.textContent = "Saving...";
+            const fileInput = document.getElementById('nc-file');
+            let filesArr = [];
+            
+            try {
+                if(fileInput.files[0]) {
+                    const url = await uploadFile(fileInput.files[0]);
+                    filesArr.push({ name: "Initial Document", url: url, date: new Date().toISOString() });
+                }
+                const isAIPreview = typeof __app_id !== 'undefined';
+                const collectionRef = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('contractors') : db.collection('contractors');
+                await collectionRef.add({
+                    companyKey: activeCompanyKey,
+                    businessName: document.getElementById('nc-name').value,
+                    contactName: document.getElementById('nc-contact').value,
+                    ein: document.getElementById('nc-ein').value,
+                    email: document.getElementById('nc-email').value,
+                    phone: document.getElementById('nc-phone').value,
+                    address: document.getElementById('nc-address').value,
+                    files: filesArr,
+                    w9OnFile: filesArr.length > 0,
+                    createdAt: new Date().toISOString()
+                });
+                document.getElementById('add-c-form').classList.add('hidden');
+                document.getElementById('new-c-form').reset();
+                showToast("Contractor Registered");
+            } catch (err) { alert("Error: " + err.message); } 
+            finally { btn.disabled = false; btn.textContent = "Save"; }
+        }
+
+        // REMOVED 'e' PARAMETER
+        async function handleSavePayment() {
+            const btn = document.querySelector('#payment-form button');
+            if(btn) { btn.textContent = "Saving..."; btn.disabled = true; }
+
+            const isAIPreview = typeof __app_id !== 'undefined';
+            const collectionRef = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('payments') : db.collection('payments');
+            
+            try {
+                await collectionRef.add({
+                    companyKey: activeCompanyKey,
+                    contractorId: document.getElementById('np-contractor').value,
+                    amount: parseFloat(document.getElementById('np-amount').value),
+                    date: document.getElementById('np-date').value,
+                    method: document.getElementById('np-method').value,
+                    description: document.getElementById('np-memo').value,
+                    createdAt: new Date().toISOString()
+                });
+                
+                document.getElementById('payment-form').reset();
+                document.getElementById('np-date').value = new Date().toISOString().split('T')[0];
+                
+                showToast("Payment Recorded");
+                
+                if(window.currentView === 'payments') renderPayments();
+            } catch (err) {
+                console.error(err);
+                alert("Error saving payment: " + err.message);
+            } finally {
+                if(btn) { btn.textContent = "Record Payment"; btn.disabled = false; }
+            }
+        }
+
+        // REMOVED 'e' PARAMETER
+        async function handlePublicSubmit() {
+            const btn = document.getElementById('btn-public-submit');
+            btn.textContent = "Submitting...";
+            btn.disabled = true;
+            const fileInput = document.getElementById('pb-file');
+            let filesArr = [];
+            try {
+                if(fileInput.files[0]) {
+                    const url = await uploadFile(fileInput.files[0]);
+                    filesArr.push({ name: "Uploaded W9", url: url, date: new Date().toISOString() });
+                }
+                const isAIPreview = typeof __app_id !== 'undefined';
+                const collectionRef = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('contractors') : db.collection('contractors');
+                await collectionRef.add({
+                    companyKey: activeCompanyKey,
+                    businessName: document.getElementById('pb-name').value,
+                    contactName: document.getElementById('pb-contact').value,
+                    ein: document.getElementById('pb-ein').value,
+                    email: document.getElementById('pb-email').value,
+                    phone: document.getElementById('pb-phone').value,
+                    address: document.getElementById('pb-address').value,
+                    files: filesArr,
+                    w9OnFile: filesArr.length > 0,
+                    createdAt: new Date().toISOString(),
+                    source: 'public_link'
+                });
+                document.getElementById('public-form').classList.add('hidden');
+                document.getElementById('public-success').classList.remove('hidden');
+            } catch (err) { alert("Error: " + err.message); btn.textContent = "Submit Registration"; btn.disabled = false; }
+        }
+
+        // ... rest of utils ...
+        async function handleDeleteFromModal() {
+            const id = document.getElementById('ec-id').value;
+            if(!confirm("Are you sure?")) return;
+            const isAIPreview = typeof __app_id !== 'undefined';
+            const collectionRef = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('contractors') : db.collection('contractors');
+            await collectionRef.doc(id).delete();
+            closeEditModal();
+            showToast("Deleted");
+        }
+        async function deleteUser(id) {
+             if(!confirm("Remove User?")) return;
+             const isAIPreview = typeof __app_id !== 'undefined';
+             const uCollection = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users') : db.collection('app_users');
+             await uCollection.doc(id).delete();
+             showToast("User Removed");
+        }
+        // REMOVED 'e' PARAMETER
+        async function handleSaveUser() {
+            const id = document.getElementById('um-id').value;
+            const name = document.getElementById('um-name').value;
+            const email = document.getElementById('um-email').value;
+            const pass = document.getElementById('um-pass').value;
+            const role = document.getElementById('um-role').value;
+            let linkedId = document.getElementById('um-contractor-link').value;
+            if (role === 'contractor') {
+                if (!linkedId) return alert("Please select a Contractor profile.");
+            } else {
+                linkedId = null;
+            }
+            const isAIPreview = typeof __app_id !== 'undefined';
+            const uCollection = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users') : db.collection('app_users');
+            const data = { name: name, email: email, password: btoa(pass), role: role, linkedContractorId: (role === 'contractor') ? (linkedId || null) : null, updatedAt: new Date().toISOString() };
+            try {
+                if(id) await uCollection.doc(id).update(data); else await uCollection.add({...data, createdAt: new Date().toISOString()});
+                closeUserModal(); showToast(id ? "User Updated" : "User Created");
+            } catch(err) { alert(err.message); }
+        }
+
+
+        // ============================================================
+        // RESTORED MODULES: Payments, Reports, Users & Contractor Portal
+        // ============================================================
+
+        function getRootRef() {
+            const isAIPreview = typeof __app_id !== 'undefined';
+            return isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data') : db;
+        }
+
+        function safeDateStr(d) {
+            if (!d) return "";
+            if (typeof d === "string") return d;
+            if (d.toDate) return d.toDate().toISOString().split("T")[0];
+            if (typeof d.seconds === "number") return new Date(d.seconds * 1000).toISOString().split("T")[0];
+            try { return new Date(d).toISOString().split("T")[0]; } catch(e) { return String(d); }
+        }
+
+        function money(n) {
+            const num = Number.parseFloat(n || 0);
+            if (Number.isNaN(num)) return "$0.00";
+            return "$" + num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function getContractorNameById(id) {
+            const c = contractors.find(x => x.id === id);
+            return c ? (c.businessName || c.contactName || "Contractor") : "Unknown";
+        }
+
+        function populateContractorSelect(selectEl, { includeAll = false, selectedId = "" } = {}) {
+            if (!selectEl) return;
+            const options = [];
+            if (includeAll) options.push(`<option value="">All Contractors</option>`);
+            contractors
+                .slice()
+                .sort((a, b) => (a.businessName || "").localeCompare((b.businessName || "")))
+                .forEach(c => options.push(`<option value="${c.id}" ${c.id === selectedId ? "selected" : ""}>${c.businessName || "Unnamed Contractor"}</option>`));
+            selectEl.innerHTML = options.join("");
+        }
+
+        // ----------------------------
+        // PAYMENTS (Ledger + CRUD)
+        // ----------------------------
+
+        function renderPayments() {
+            const container = document.getElementById('content-area');
+            const isFiltered = !!pendingLedgerFilter;
+            const filteredName = isFiltered ? getContractorNameById(pendingLedgerFilter) : "";
+
+            // Contractor users should never see the global ledger
+            if (currentUser && currentUser.role === 'contractor') {
+                router('my-profile');
+                return;
+            }
+
+            const sorted = payments
+                .slice()
+                .sort((a, b) => new Date(safeDateStr(b.date) || b.createdAt || 0) - new Date(safeDateStr(a.date) || a.createdAt || 0));
+
+            const list = isFiltered ? sorted.filter(p => p.contractorId === pendingLedgerFilter) : sorted;
+
+            const total = list.reduce((acc, p) => acc + (Number.parseFloat(p.amount) || 0), 0);
+
+            const rows = list.map(p => {
+                const cName = getContractorNameById(p.contractorId);
+                const d = safeDateStr(p.date);
+                const amt = money(p.amount);
+                const method = p.method || "-";
+                const memo = (p.description || p.memo || "").toString();
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${d || "-"}</td>
+                        <td class="py-3 px-3 text-sm font-semibold text-slate-800">${cName}</td>
+                        <td class="py-3 px-3 text-sm font-bold text-slate-800 whitespace-nowrap">${amt}</td>
+                        <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${method}</td>
+                        <td class="py-3 px-3 text-sm text-slate-600 max-w-[280px] truncate" title="${memo.replaceAll('"', '&quot;')}">${memo || "-"}</td>
+                        <td class="py-3 px-3 text-sm text-slate-600 action-col whitespace-nowrap">
+                            <button type="button" onclick="openEditPaymentModal('${p.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>
+                        </td>
+                    </tr>
+                `;
+            }).join("");
+
+            container.innerHTML = `
+                <div class="no-print flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">Payment Ledger</h3>
+                        <p class="text-sm text-slate-500">Track and manage contractor payouts.</p>
+                    </div>
+                    <div class="flex items-center gap-0">
+                        <button onclick="window.print()" class="bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-3 py-2 rounded-lg font-bold flex items-center gap-0 shadow-sm text-xs md:text-sm">
+                            <i data-lucide="printer" class="w-4 h-4"></i> Print
+                        </button>
+                    </div>
+                </div>
+
+                ${isFiltered ? `
+                    <div class="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-blue-600 text-white rounded-lg"><i data-lucide="filter" class="w-5 h-5"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-blue-900 uppercase tracking-wider">Filtered Contractor</p>
+                                <p class="font-bold text-slate-800">${filteredName}</p>
+                            </div>
+                        </div>
+                        <button onclick="pendingLedgerFilter=null; router('payments')" class="text-blue-700 font-bold text-sm hover:underline">Clear</button>
+                    </div>
+                ` : ""}
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6 no-print">
+                    <h4 class="font-bold text-slate-800 mb-4 flex items-center gap-0"><i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i> Record a Payment</h4>
+                    <form id="payment-form" class="grid grid-cols-1 md:grid-cols-6 gap-3" onsubmit="event.preventDefault(); return false;">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contractor</label>
+                            <select id="np-contractor" required class="w-full p-2 border border-slate-300 rounded bg-white"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label>
+                            <input type="date" id="np-date" required class="w-full p-2 border border-slate-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Amount</label>
+                            <input type="number" step="0.01" id="np-amount" required placeholder="0.00" class="w-full p-2 border border-slate-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Method</label>
+                            <select id="np-method" class="w-full p-2 border border-slate-300 rounded bg-white">
+                                <option>Check</option><option>ACH</option><option>Zelle</option><option>Cash</option><option>Credit Card</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-6">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Memo</label>
+                            <input type="text" id="np-memo" placeholder="Optional" class="w-full p-2 border border-slate-300 rounded">
+                        </div>
+                        <div class="md:col-span-6 flex justify-end">
+                            <button type="button" onclick="handleSavePayment()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-bold shadow-sm">Record Payment</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-green-100 text-green-700 rounded-lg"><i data-lucide="wallet" class="w-5 h-5"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total in View</p>
+                                <p class="text-lg font-bold text-slate-800">${money(total)}</p>
+                            </div>
+                        </div>
+                        <div class="text-xs text-slate-500">${list.length} payment(s)</div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                <tr>
+                                    <th class="py-3 px-3">Date</th>
+                                    <th class="py-3 px-3">Contractor</th>
+                                    <th class="py-3 px-3">Amount</th>
+                                    <th class="py-3 px-3">Method</th>
+                                    <th class="py-3 px-3">Memo</th>
+                                    <th class="py-3 px-3 action-col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows || `<tr><td colspan="6" class="py-10 text-center text-slate-400">No payments found.</td></tr>`}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // initialize form defaults
+            const contractorSelect = document.getElementById('np-contractor');
+            populateContractorSelect(contractorSelect, { selectedId: pendingLedgerFilter || "" });
+            const dateInput = document.getElementById('np-date');
+            if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().split('T')[0];
+
+            lucide.createIcons();
+        }
+
+        function openEditPaymentModal(paymentId) {
+            const p = payments.find(x => x.id === paymentId);
+            if (!p) return;
+
+            const contractorSelect = document.getElementById('ep-contractor');
+            populateContractorSelect(contractorSelect, { selectedId: p.contractorId });
+
+            document.getElementById('ep-id').value = p.id;
+            document.getElementById('ep-date').value = safeDateStr(p.date) || new Date().toISOString().split('T')[0];
+            document.getElementById('ep-amount').value = Number.parseFloat(p.amount || 0);
+            document.getElementById('ep-method').value = p.method || "Check";
+            document.getElementById('ep-memo').value = (p.description || p.memo || "");
+
+            document.getElementById('edit-payment-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        async function handleUpdatePayment() {
+            const btn = document.getElementById('btn-update-p');
+            if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
+
+            const id = document.getElementById('ep-id').value;
+            if (!id) return;
+
+            try {
+                const payload = {
+                    date: document.getElementById('ep-date').value,
+                    contractorId: document.getElementById('ep-contractor').value,
+                    amount: Number.parseFloat(document.getElementById('ep-amount').value || 0),
+                    method: document.getElementById('ep-method').value,
+                    description: document.getElementById('ep-memo').value,
+                    updatedAt: new Date().toISOString()
+                };
+
+                await getRootRef().collection('payments').doc(id).update(payload);
+
+                closeEditPaymentModal();
+                showToast("Payment Updated");
+            } catch (err) {
+                console.error(err);
+                alert("Error updating payment: " + err.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+            }
+        }
+
+        async function handleDeletePaymentFromModal() {
+            const id = document.getElementById('ep-id').value;
+            if (!id) return;
+            if (!confirm("Delete this payment?")) return;
+
+            try {
+                await getRootRef().collection('payments').doc(id).delete();
+                closeEditPaymentModal();
+                showToast("Payment Deleted");
+            } catch (err) {
+                console.error(err);
+                alert("Error deleting payment: " + err.message);
+            }
+        }
+
+        // ----------------------------
+        // REPORTS (Compliance + 1099)
+        // ----------------------------
+
+        function renderReports() {
+            const container = document.getElementById('content-area');
+
+            // Contractor users should never see reports
+            if (currentUser && currentUser.role === 'contractor') {
+                router('my-profile');
+                return;
+            }
+
+            const currentYear = new Date().getFullYear();
+            const yearSelectId = "rp-year";
+
+            const selectedYear = window.__reportsYear || currentYear;
+            const yearStr = String(selectedYear);
+
+            const yearPayments = payments.filter(p => safeDateStr(p.date).startsWith(yearStr));
+
+            const totalsByContractor = {};
+            yearPayments.forEach(p => {
+                const cid = p.contractorId || "unknown";
+                totalsByContractor[cid] = (totalsByContractor[cid] || 0) + (Number.parseFloat(p.amount) || 0);
+            });
+
+            const rows = Object.entries(totalsByContractor)
+                .map(([cid, total]) => {
+                    const c = contractors.find(x => x.id === cid);
+                    const name = c ? (c.businessName || "Unnamed Contractor") : "Unknown";
+                    const hasFiles = !!(c && (c.w9OnFile || (c.files && c.files.length)));
+                    const eligible1099 = total >= 600;
+                    return { cid, name, total, hasFiles, eligible1099 };
+                })
+                .sort((a, b) => b.total - a.total);
+
+            const totalPaid = rows.reduce((acc, r) => acc + r.total, 0);
+            const eligibleCount = rows.filter(r => r.eligible1099).length;
+
+            const missingW9List = contractors
+                .filter(c => !(c.w9OnFile || (c.files && c.files.length)))
+                .slice()
+                .sort((a, b) => (a.businessName || "").localeCompare((b.businessName || "")));
+
+            container.innerHTML = `
+                <div class="no-print flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">Financial Reports</h3>
+                        <p class="text-sm text-slate-500">1099 totals & compliance overview.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-0">
+                        <div class="bg-white border border-slate-200 rounded-lg px-3 py-2 flex items-center gap-0 shadow-sm">
+                            <i data-lucide="calendar" class="w-4 h-4 text-slate-500"></i>
+                            <select id="${yearSelectId}" class="text-sm font-bold text-slate-700 bg-transparent outline-none">
+                                ${[currentYear, currentYear-1, currentYear-2].map(y => `<option value="${y}" ${y === selectedYear ? "selected" : ""}>${y}</option>`).join("")}
+                            </select>
+                        </div>
+                        <button onclick="window.print()" class="bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-3 py-2 rounded-lg font-bold flex items-center gap-0 shadow-sm text-xs md:text-sm">
+                            <i data-lucide="printer" class="w-4 h-4"></i> Print
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+                        <div class="p-3 bg-green-100 text-green-700 rounded-full"><i data-lucide="dollar-sign" class="w-6 h-6"></i></div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-500 uppercase">Total Paid (${selectedYear})</p>
+                            <p class="text-2xl font-bold text-slate-800">${money(totalPaid)}</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+                        <div class="p-3 bg-purple-100 text-purple-700 rounded-full"><i data-lucide="file-text" class="w-6 h-6"></i></div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-500 uppercase">1099 Eligible (≥ $600)</p>
+                            <p class="text-2xl font-bold text-slate-800">${eligibleCount}</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+                        <div class="p-3 bg-red-100 text-red-700 rounded-full"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-500 uppercase">Missing W9 / Docs</p>
+                            <p class="text-2xl font-bold text-slate-800">${missingW9List.length}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-slate-100 text-slate-600 rounded-lg"><i data-lucide="bar-chart-3" class="w-5 h-5"></i></div>
+                                <div>
+                                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">1099 Summary</p>
+                                    <p class="font-bold text-slate-800">${selectedYear}</p>
+                                </div>
+                            </div>
+                            <div class="text-xs text-slate-500">${rows.length} contractor(s)</div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                    <tr>
+                                        <th class="py-3 px-3">Contractor</th>
+                                        <th class="py-3 px-3">Total</th>
+                                        <th class="py-3 px-3">1099</th>
+                                        <th class="py-3 px-3">Docs</th>
+                                        <th class="py-3 px-3 action-col">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows.map(r => `
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="py-3 px-3 font-semibold text-slate-800">${r.name}</td>
+                                            <td class="py-3 px-3 font-bold text-slate-800 whitespace-nowrap">${money(r.total)}</td>
+                                            <td class="py-3 px-3">
+                                                ${r.eligible1099 ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Eligible</span>` : `<span class="bg-slate-100 text-slate-600 px-2 py-1 rounded-full text-xs font-bold">—</span>`}
+                                            </td>
+                                            <td class="py-3 px-3">
+                                                ${r.hasFiles ? `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-bold">On File</span>` : `<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">Missing</span>`}
+                                            </td>
+                                            <td class="py-3 px-3 action-col whitespace-nowrap">
+                                                <button onclick="goToPaymentLedger('${r.cid}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">View Ledger</button>
+                                            </td>
+                                        </tr>
+                                    `).join("") || `<tr><td colspan="5" class="py-10 text-center text-slate-400">No payments found for ${selectedYear}.</td></tr>`}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex items-center gap-3">
+                            <div class="p-2 bg-orange-100 text-orange-700 rounded-lg"><i data-lucide="folder-x" class="w-5 h-5"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Compliance</p>
+                                <p class="font-bold text-slate-800">Missing Documents</p>
+                            </div>
+                        </div>
+                        <div class="p-4 space-y-2 max-h-[420px] overflow-y-auto">
+                            ${missingW9List.map(c => `
+                                <div class="flex items-center justify-between gap-0 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div class="min-w-0">
+                                        <p class="font-bold text-slate-800 truncate">${c.businessName || "Unnamed Contractor"}</p>
+                                        <p class="text-xs text-slate-500 truncate">${c.ein || ""}</p>
+                                    </div>
+                                    <button onclick="openEditModal('${c.id}')" class="text-blue-600 hover:underline text-xs font-bold whitespace-nowrap">Fix</button>
+                                </div>
+                            `).join("") || `<p class="text-center text-slate-400 py-8">All set. No missing documents.</p>`}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const yearSelect = document.getElementById(yearSelectId);
+            if (yearSelect) {
+                yearSelect.addEventListener('change', () => {
+                    window.__reportsYear = Number.parseInt(yearSelect.value, 10);
+                    renderReports();
+                });
+            }
+
+            lucide.createIcons();
+        }
+
+        // ----------------------------
+        // USERS & ACCESS (Admin only)
+        // ----------------------------
+
+        function toggleContractorSelect() {
+            const role = document.getElementById('um-role')?.value;
+            const div = document.getElementById('um-contractor-div');
+            const select = document.getElementById('um-contractor-link');
+            if (!div) return;
+
+            if (role === 'contractor') {
+                div.classList.remove('hidden');
+            } else {
+                div.classList.add('hidden');
+                // Prevent accidental linking of internal users (Admin/Employee)
+                if (select) select.value = "";
+            }
+        }
+
+        function openUserModal(id = "") {
+            const modal = document.getElementById('user-modal');
+            const title = document.getElementById('um-title');
+            const user = id ? appUsers.find(u => u.id === id) : null;
+
+            document.getElementById('um-id').value = id || "";
+            document.getElementById('um-name').value = user?.name || "";
+            document.getElementById('um-email').value = user?.email || "";
+            document.getElementById('um-pass').value = user?.password ? atob(user.password) : "";
+            document.getElementById('um-role').value = user?.role || "employee";
+
+            // populate contractor link list
+            const select = document.getElementById('um-contractor-link');
+            const selectedId = (user && user.role === 'contractor') ? (user.linkedContractorId || "") : "";
+            populateContractorSelect(select, { includeAll: false, selectedId });
+            // include empty option at top
+            select.insertAdjacentHTML('afterbegin', `<option value="">Select Contractor...</option>`);
+            select.value = selectedId || "";
+
+            toggleContractorSelect();
+
+            if (title) title.textContent = id ? "Edit User" : "Add User";
+            if (modal) modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function renderUsers() {
+            const container = document.getElementById('content-area');
+
+            if (!currentUser || currentUser.role !== 'admin') {
+                container.innerHTML = `
+                ${migrateBox}
+<div class="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
+                    <i data-lucide="shield-alert" class="w-10 h-10 mx-auto mb-3 text-slate-400"></i>
+                    <p class="font-bold text-slate-800 mb-1">Access Restricted</p>
+                    <p class="text-sm">Only admins can manage users.</p>
+                </div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            const showMigration = !!(currentUser && currentUser.role === 'admin' && (currentUser.companyKey === 'all' || currentUser.canSwitchCompany === true));
+            const migrateBox = showMigration ? `
+                <div class="bg-white border border-amber-200 rounded-xl p-5 mb-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <div class="flex items-center gap-0 text-amber-800 font-bold">
+                                <i data-lucide="database" class="w-5 h-5"></i>
+                                <span>Legacy Data Migration</span>
+                            </div>
+                            <p class="text-sm text-slate-600 mt-1">
+                                Import existing data from the old <b>D2 Smart Contractors</b> Firebase into this database, keeping it isolated under <code class="text-xs bg-slate-100 px-1 py-0.5 rounded">companyKey="smart"</code>.
+                                This will not modify HVAC data.
+                            </p>
+                            <p class="text-xs text-slate-500 mt-2">
+                                Notes: This migrates <b>contractors</b>, <b>payments</b>, and <b>users</b> documents. Existing file URLs will continue pointing to the old Storage bucket (optional Storage migration can be done later).
+                            </p>
+                        </div>
+                        <div class="shrink-0 text-right">
+                            <button id="btn-migrate-smart" onclick="startSmartMigration()" class="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                                Migrate D2 Smart Data
+                            </button>
+                            <div class="mt-2">
+                                <button id="btn-migrate-smart-dry" onclick="startSmartMigration(true)" class="text-xs font-bold text-amber-700 hover:text-amber-800 underline">
+                                    Dry-run (count only)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="migration-status" class="mt-4 hidden">
+                        <div class="text-xs font-bold text-slate-700 mb-2">Progress</div>
+                        <div id="migration-log" class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-48 overflow-auto whitespace-pre-wrap"></div>
+                    </div>
+                </div>
+            ` : ``;
+
+            const rows = appUsers
+                .slice()
+                .sort((a, b) => (a.name || "").localeCompare((b.name || "")))
+                .map(u => {
+                    const role = (u.role || "employee");
+                    const linked = (role === 'contractor')
+                        ? (u.linkedContractorId ? getContractorNameById(u.linkedContractorId) : "(not linked)")
+                        : "D2 Smart (Internal)";
+                    const updated = safeDateStr(u.updatedAt || u.createdAt);
+                    return `
+                        <tr class="hover:bg-slate-50">
+                            <td class="py-3 px-3">
+                                <div class="font-bold text-slate-800">${u.name || "-"}</div>
+                                <div class="text-xs text-slate-500">${u.email || "-"}</div>
+                            </td>
+                            <td class="py-3 px-3 text-sm font-bold text-slate-700 capitalize">${role}</td>
+                            <td class="py-3 px-3 text-sm text-slate-600">${linked}</td>
+                            <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${updated || "-"}</td>
+                            <td class="py-3 px-3 action-col whitespace-nowrap">
+                                <button onclick="openUserModal('${u.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>
+                                <button onclick="deleteUser('${u.id}')" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded font-bold text-xs">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join("");
+
+            container.innerHTML = `
+                <div class="no-print flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">Users & Access</h3>
+                        <p class="text-sm text-slate-500">Create users and control roles.</p>
+                    </div>
+                    <div class="flex gap-0">
+                        <button onclick="openUserModal('')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm flex items-center gap-0">
+                            <i data-lucide="user-plus" class="w-4 h-4"></i> Add User
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                <tr>
+                                    <th class="py-3 px-3">User</th>
+                                    <th class="py-3 px-3">Role</th>
+                                    <th class="py-3 px-3">Linked Contractor</th>
+                                    <th class="py-3 px-3">Updated</th>
+                                    <th class="py-3 px-3 action-col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows || `<tr><td colspan="5" class="py-10 text-center text-slate-400">No users found.</td></tr>`}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            lucide.createIcons();
+        }
+
+        // --------------------------------
+        // CONTRACTOR PORTAL (My Profile)
+        // --------------------------------
+
+        function renderContractorPortal() {
+            const container = document.getElementById('content-area');
+
+            if (!currentUser || currentUser.role !== 'contractor') {
+                container.innerHTML = `<div class="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
+                    <i data-lucide="user" class="w-10 h-10 mx-auto mb-3 text-slate-400"></i>
+                    <p class="font-bold text-slate-800 mb-1">Contractor Portal</p>
+                    <p class="text-sm">Log in with a contractor account to access this page.</p>
+                </div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            const cid = currentUser.linkedContractorId;
+            const c = contractors.find(x => x.id === cid);
+
+            if (!cid || !c) {
+                container.innerHTML = `<div class="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
+                    <i data-lucide="alert-triangle" class="w-10 h-10 mx-auto mb-3 text-slate-400"></i>
+                    <p class="font-bold text-slate-800 mb-1">Profile Not Linked</p>
+                    <p class="text-sm">This account is not linked to a contractor profile yet. Please contact D2 Contractors.</p>
+                </div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            const myPayments = payments
+                .filter(p => p.contractorId === cid)
+                .slice()
+                .sort((a, b) => new Date(safeDateStr(b.date) || b.createdAt || 0) - new Date(safeDateStr(a.date) || a.createdAt || 0));
+
+            const total = myPayments.reduce((acc, p) => acc + (Number.parseFloat(p.amount) || 0), 0);
+
+            const files = (c.files || []).slice().sort((a, b) => (safeDateStr(b.date) || "").localeCompare(safeDateStr(a.date) || ""));
+
+            container.innerHTML = `
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-slate-800">My Profile</h3>
+                    <p class="text-sm text-slate-500">View your documents and payment history.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-3 bg-blue-100 text-blue-700 rounded-xl"><i data-lucide="building-2" class="w-6 h-6"></i></div>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-slate-500 uppercase">Business</p>
+                                <p class="font-bold text-slate-800 truncate">${c.businessName || "-"}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-sm text-slate-600">
+                            <div class="flex justify-between gap-0"><span class="font-bold text-slate-500">Contact</span><span class="text-right">${c.contactName || "-"}</span></div>
+                            <div class="flex justify-between gap-0"><span class="font-bold text-slate-500">EIN/SSN</span><span class="text-right font-mono">${c.ein || "-"}</span></div>
+                            <div class="flex justify-between gap-0"><span class="font-bold text-slate-500">Phone</span><span class="text-right">${c.phone || "-"}</span></div>
+                            <div class="flex justify-between gap-0"><span class="font-bold text-slate-500">Email</span><span class="text-right">${c.email || "-"}</span></div>
+                            <div class="pt-3 mt-3 border-t border-slate-100">
+                                <p class="text-xs font-bold text-slate-500 uppercase">Total Payments</p>
+                                <p class="text-2xl font-bold text-slate-800">${money(total)}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-2 bg-purple-100 text-purple-700 rounded-lg"><i data-lucide="folder-open" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Documents</h4>
+                        </div>
+                        <div class="space-y-2 max-h-[420px] overflow-y-auto">
+                            ${files.map(f => `
+                                <a href="${f.url}" target="_blank" class="block p-3 bg-slate-50 rounded-lg border border-slate-100 hover:bg-white transition">
+                                    <div class="flex items-center justify-between gap-0">
+                                        <div class="min-w-0">
+                                            <p class="font-bold text-slate-800 truncate">${f.name || "Document"}</p>
+                                            <p class="text-xs text-slate-500">${safeDateStr(f.date) || ""}</p>
+                                        </div>
+                                        <i data-lucide="external-link" class="w-4 h-4 text-slate-400 shrink-0"></i>
+                                    </div>
+                                </a>
+                            `).join("") || `<p class="text-center text-slate-400 py-10">No documents uploaded yet.</p>`}
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-2 bg-green-100 text-green-700 rounded-lg"><i data-lucide="receipt" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Payment History</h4>
+                        </div>
+                        <div class="space-y-2 max-h-[420px] overflow-y-auto">
+                            ${myPayments.map(p => `
+                                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div class="flex items-center justify-between">
+                                        <p class="font-bold text-slate-800">${money(p.amount)}</p>
+                                        <p class="text-xs text-slate-500">${safeDateStr(p.date) || "-"}</p>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mt-1">${p.method || ""}${(p.description || p.memo) ? " • " + (p.description || p.memo) : ""}</p>
+                                </div>
+                            `).join("") || `<p class="text-center text-slate-400 py-10">No payments recorded yet.</p>`}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-2 bg-blue-100 text-blue-700 rounded-lg"><i data-lucide="edit-3" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Update Profile</h4>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Business Name</label>
+                                <input id="cp-business" type="text" value="${c.businessName || ""}" disabled class="w-full p-2 border border-slate-300 rounded bg-slate-50 text-slate-600">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contact Person</label>
+                                <input id="cp-contact" type="text" value="${c.contactName || ""}" class="w-full p-2 border border-slate-300 rounded">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
+                                <input id="cp-email" type="email" value="${c.email || ""}" class="w-full p-2 border border-slate-300 rounded">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
+                                <input id="cp-phone" type="text" value="${c.phone || ""}" class="w-full p-2 border border-slate-300 rounded">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Address</label>
+                                <input id="cp-address" type="text" value="${c.address || ""}" class="w-full p-2 border border-slate-300 rounded">
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-4">
+                            <button onclick="handleContractorProfileUpdate()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-bold shadow-sm">Save Changes</button>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-3">Updates are saved to your contractor profile and visible to D2 Smart.</p>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-2 bg-purple-100 text-purple-700 rounded-lg"><i data-lucide="upload" class="w-5 h-5"></i></div>
+                            <h4 class="font-bold text-slate-800">Upload a Document</h4>
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Document Name</label>
+                                <input id="cp-doc-name" type="text" placeholder="e.g. Insurance, License, W9" class="w-full p-2 border border-slate-300 rounded">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">File (PDF or Photo)</label>
+                                <input id="cp-doc-file" type="file" accept="image/*,application/pdf" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-slate-900 file:text-white hover:file:bg-black cursor-pointer bg-white rounded-lg border border-slate-300">
+                                <p class="text-[11px] text-slate-400 mt-1">Tip: keep files under 500KB if your upload falls back to offline mode.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <button onclick="handleContractorUploadDocument()" class="bg-slate-900 hover:bg-black text-white px-5 py-2 rounded-lg font-bold shadow-sm">Upload</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+`;
+
+            lucide.createIcons();
+        }
+
+        // --------------------------------
+        // CONTRACTOR SELF-SERVICE (Portal)
+        // --------------------------------
+
+        async function handleContractorProfileUpdate() {
+            if (!currentUser || currentUser.role !== 'contractor') return;
+            const cid = currentUser.linkedContractorId;
+            if (!cid) return alert("Profile not linked.");
+
+            const contactName = document.getElementById('cp-contact')?.value?.trim() || "";
+            const email = document.getElementById('cp-email')?.value?.trim() || "";
+            const phone = document.getElementById('cp-phone')?.value?.trim() || "";
+            const address = document.getElementById('cp-address')?.value?.trim() || "";
+
+            try {
+                const isAIPreview = typeof __app_id !== 'undefined';
+                const cCollection = isAIPreview
+                    ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('contractors')
+                    : db.collection('contractors');
+
+                await cCollection.doc(cid).update({
+                    contactName,
+                    email,
+                    phone,
+                    address,
+                    updatedAt: new Date().toISOString(),
+                    updatedBy: currentUser.email || "contractor_portal"
+                });
+
+                // Update sidebar display name for contractor users
+                if (contactName) {
+                    currentUser.name = contactName;
+                    saveSession();
+                    const nameEl = document.getElementById('user-name-display');
+                    if (nameEl) nameEl.textContent = contactName;
+                    const initialsEl = document.getElementById('user-initials-display');
+                    if (initialsEl) initialsEl.textContent = contactName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                }
+
+                showToast("Profile updated");
+            } catch (e) {
+                console.error(e);
+                alert("Error: " + (e.message || e));
+            }
+        }
+
+        async function handleContractorUploadDocument() {
+            if (!currentUser || currentUser.role !== 'contractor') return;
+            const cid = currentUser.linkedContractorId;
+            if (!cid) return alert("Profile not linked.");
+
+            const fileInput = document.getElementById('cp-doc-file');
+            const nameInput = document.getElementById('cp-doc-name');
+            const file = fileInput?.files?.[0];
+
+            if (!file) return alert("Please choose a file.");
+            const docName = (nameInput?.value || "").trim() || file.name;
+
+            try {
+                const url = await uploadFile(file);
+                const c = contractors.find(x => x.id === cid);
+                const files = (c && Array.isArray(c.files)) ? c.files.slice() : [];
+                files.push({ name: docName, url: url, date: new Date().toISOString() });
+
+                const isAIPreview = typeof __app_id !== 'undefined';
+                const cCollection = isAIPreview
+                    ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('contractors')
+                    : db.collection('contractors');
+
+                await cCollection.doc(cid).update({
+                    files,
+                    w9OnFile: true,
+                    updatedAt: new Date().toISOString(),
+                    updatedBy: currentUser.email || "contractor_portal"
+                });
+
+                if (nameInput) nameInput.value = "";
+                if (fileInput) fileInput.value = "";
+
+                showToast("Document uploaded");
+            } catch (e) {
+                console.error(e);
+                alert("Error: " + (e.message || e));
+            }
+        }
+
+
+        // ----------------------------
+        // OTHER MISSING UTILITIES
+        // ----------------------------
+
+        async function copyLink() {
+            const base = (() => {
+                // Ensure base directory ends with "/"
+                let p = window.location.pathname;
+                // If served as /index.html, strip it
+                if (p.endsWith("/index.html")) p = p.replace("/index.html", "/");
+                if (!p.endsWith("/")) p += "/";
+                return window.location.origin + p;
+            })();
+
+            const landing = (activeCompanyKey === "smart") ? "onboard-smart.html" : "onboard-hvac.html";
+            const link = base + landing;
+
+            openLinkModal(link);
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(link);
+                    showToast("Onboarding link copied");
+                } else {
+                    const tmp = document.createElement('input');
+                    tmp.value = link;
+                    document.body.appendChild(tmp);
+                    tmp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tmp);
+                    showToast("Onboarding link copied");
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function openLinkModal(link) {
+            const modal = document.getElementById("link-modal");
+            const input = document.getElementById("link-modal-input");
+            if (input) input.value = link;
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.classList.add("flex");
+            }
+            // Ensure branding is correct
+            try { applyCompanyBranding(); } catch(e) {}
+            try { lucide.createIcons(); } catch(e) {}
+        }
+
+        function closeLinkModal() {
+            const modal = document.getElementById("link-modal");
+            if (modal) {
+                modal.classList.add("hidden");
+                modal.classList.remove("flex");
+            }
+        }
+
+        async function copyLinkFromModal() {
+            const input = document.getElementById("link-modal-input");
+            const link = input ? input.value : "";
+            if (!link) return;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(link);
+                } else {
+                    const tmp = document.createElement('input');
+                    tmp.value = link;
+                    document.body.appendChild(tmp);
+                    tmp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(tmp);
+                }
+                showToast("Link copied");
+            } catch(e) {
+                prompt("Copy this onboarding link:", link);
+            }
+        }
+            } catch (e) {
+                console.error(e);
+                prompt("Copy this onboarding link:", link);
+            }
+        }
+
+        // --- GLOBAL UI HELPERS ---
+        function closeEditModal() {
+            const modal = document.getElementById('edit-c-modal');
+            if(modal) modal.classList.add('hidden');
+        }
+        function closeUserModal() {
+            const modal = document.getElementById('user-modal');
+            if(modal) modal.classList.add('hidden');
+        }
+        function closeEditPaymentModal() {
+            const modal = document.getElementById('edit-payment-modal');
+            if(modal) modal.classList.add('hidden');
+        }
+        function showToast(message = "Success", duration = 3000) {
+            const toast = document.getElementById("toast");
+            const msg = document.getElementById("toast-msg");
+            if (!toast || !msg) return;
+            msg.textContent = message;
+            toast.classList.remove("translate-y-20");
+            setTimeout(() => toast.classList.add("translate-y-20"), duration);
+        }
+    </script>
+</body>
+</html>
