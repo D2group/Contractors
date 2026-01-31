@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- BUILD: 2026-01-31-RESTORE+LOGIN+SHOWFIX -->
+<!-- BUILD: 2026-01-31-FULLFIX-2 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>D2 Contractors - Contractor Manager</title>
@@ -446,6 +446,76 @@ let storage = null;
 
         function normalizeCompanyKey(v) { return (v && String(v).trim()) ? String(v).trim() : "hvac"; }
 
+        // --- Data formatting helpers (required by Payments / Reports / Users) ---
+        function money(value) {
+            const n = Number(value);
+            if (!isFinite(n)) return '$0.00';
+            try {
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+            } catch (e) {
+                return '$' + n.toFixed(2);
+            }
+        }
+
+        function safeDateStr(v) {
+            if (!v) return '';
+            try {
+                // Firestore Timestamp
+                if (typeof v === 'object') {
+                    if (typeof v.toDate === 'function') {
+                        const d = v.toDate();
+                        return isFinite(d.getTime()) ? d.toISOString().slice(0,10) : '';
+                    }
+                    if (typeof v.seconds === 'number') {
+                        const d = new Date(v.seconds * 1000);
+                        return isFinite(d.getTime()) ? d.toISOString().slice(0,10) : '';
+                    }
+                }
+                const s = String(v);
+                // ISO string
+                if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+                const d = new Date(s);
+                return isFinite(d.getTime()) ? d.toISOString().slice(0,10) : s;
+            } catch (e) {
+                return String(v);
+            }
+        }
+
+        function getContractorNameById(contractorId) {
+            const id = String(contractorId || '').trim();
+            if (!id) return '—';
+            const c = (contractors || []).find(x => String(x.id) === id);
+            if (!c) return id;
+            return c.businessName || c.contactName || c.email || id;
+        }
+
+        function populateContractorSelect(selectId, includeAll = true) {
+            const el = document.getElementById(selectId);
+            if (!el) return;
+            const currentVal = el.value;
+            const list = (contractors || []).slice().sort((a,b)=>{
+                const an=(a.businessName||a.contactName||'').toLowerCase();
+                const bn=(b.businessName||b.contactName||'').toLowerCase();
+                return an.localeCompare(bn);
+            });
+            el.innerHTML = '';
+            if (includeAll) {
+                const o = document.createElement('option');
+                o.value = '';
+                o.textContent = 'All contractors';
+                el.appendChild(o);
+            }
+            for (const c of list) {
+                const o = document.createElement('option');
+                o.value = c.id;
+                o.textContent = c.businessName || c.contactName || c.id;
+                el.appendChild(o);
+            }
+            // restore selection if possible
+            if (currentVal && [...el.options].some(o => o.value === currentVal)) el.value = currentVal;
+        }
+
+
         function loadCompanyFromStorage() {
             try {
                 const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
@@ -772,7 +842,7 @@ let storage = null;
 
                     const role = rolesByCompany[selectedCompany] || 'user';
                     const name = (namesByCompany[selectedCompany] || '').trim() || email;
-                    const isSuperAdmin = Object.values(rolesByCompany).includes('super_admin');
+                    const isSuperAdmin = Object.values(rolesByCompany).some(r => r === 'super_admin' || r === 'admin');
 
                     foundUser = {
                         email,
