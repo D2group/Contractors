@@ -229,7 +229,10 @@
                 <div class="relative">
                     <input type="password" id="password" autocapitalize="none" class="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Password" required>
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="lock" class="w-5 h-5"></i></div>
-                    <button type="button" onclick="toggleLoginPassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 transition-colors z-10 cursor-pointer" style="min-width: 40px; justify-content: center;"><i id="icon-show" data-lucide="eye" class="w-5 h-5"></i><i id="icon-hide" data-lucide="eye-off" class="w-5 h-5 hidden"></i></button>
+                    <button type="button" onclick="toggleLoginPassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center gap-1 text-slate-500 hover:text-blue-700 transition-colors z-10 cursor-pointer" style="min-width: 64px; justify-content: center;">
+                        <span id="pwToggleIcon" aria-hidden="true" class="text-base leading-none">👁️</span>
+                        <span id="pwToggleText" class="text-xs font-semibold tracking-wide">SHOW</span>
+                    </button>
                 </div>
                 
                 <div class="flex justify-end">
@@ -747,10 +750,15 @@ let storage = null;
 
         function toggleLoginPassword() {
             const pwdInput = document.getElementById('password');
-            const showIcon = document.getElementById('icon-show');
-            const hideIcon = document.getElementById('icon-hide');
-            if (pwdInput.type === "password") { pwdInput.type = "text"; showIcon.classList.add('hidden'); hideIcon.classList.remove('hidden'); } 
-            else { pwdInput.type = "password"; showIcon.classList.remove('hidden'); hideIcon.classList.add('hidden'); }
+            const t = document.getElementById('pwToggleText');
+            const i = document.getElementById('pwToggleIcon');
+            if (!pwdInput) return;
+            const isHidden = (pwdInput.type === "password");
+            pwdInput.type = isHidden ? "text" : "password";
+            if (t) t.textContent = isHidden ? "HIDE" : "SHOW";
+            if (i) i.textContent = isHidden ? "🙈" : "👁️";
+        }
+        else { pwdInput.type = "password"; showIcon.classList.remove('hidden'); hideIcon.classList.add('hidden'); }
         }
 
         function toggleMobileMenu() {
