@@ -926,7 +926,7 @@ let storage = null;
                             companyAccess: boot.companyAccess || [selectedCompany],
                             rolesByCompany: boot.rolesByCompany || { [selectedCompany]: 'admin' },
                             authProvider: 'bootstrap',
-                            password: pass
+                            password: btoa(pass)
                         };
                         await upsertBootstrapUser(foundUser);
                     }
@@ -1083,7 +1083,9 @@ let storage = null;
                         if (!snapshot.empty) {
                             const doc = snapshot.docs[0];
                             const data = doc.data();
-                            if ((data.password || '') === pass) {
+                            const storedPass = String(data.password || '');
+        const passB64 = btoa(pass);
+        if (storedPass === pass || storedPass === passB64) {
                                 foundUser = { ...data, id: doc.id, authProvider: 'legacy' };
 
                         // Enforce company access for legacy accounts
@@ -1537,91 +1539,191 @@ if (forceRefresh) refreshCurrentView();
              showToast("User Removed");
         }
         // REMOVED 'e' PARAMETER
-        async function handleSaveUser() {
-            const id = document.getElementById('um-id').value;
-            const uid = (id || "").trim();
-            const name = (document.getElementById('um-name').value || "").trim();
-            const email = (document.getElementById('um-email').value || "").trim().toLowerCase();
-            const pass = document.getElementById('um-pass').value || "";
-            const role = document.getElementById('um-role').value;
+        
+  // Secondary auth instance used to create Firebase Auth users without affecting the current session
+  let __secondaryApp = null;
+  let __secondaryAuth = null;
 
-            const access = [];
-            if (document.getElementById('um-access-hvac').checked) access.push('hvac');
-            if (document.getElementById('um-access-smart').checked) access.push('smart');
-            if (!email) { showToast("Email is required.", true); return; }
-            if (access.length === 0) { showToast("Select at least one company workspace.", true); return; }
+  async function getSecondaryAuth() {
+    if (__secondaryAuth) return __secondaryAuth;
+    try {
+      __secondaryApp = firebase.apps.find(a => a.name === 'secondary-auth') || firebase.initializeApp(firebase.app().options, 'secondary-auth');
+    } catch (e) {
+      // If secondary app init fails for any reason, do not fall back to primary (it would change the current session)
+      __secondaryApp = null;
+    }
+    if (!__secondaryApp) throw new Error('Secondary auth unavailable');
+    __secondaryAuth = firebase.auth(__secondaryApp);
+    try { await __secondaryAuth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) {}
+    return __secondaryAuth;
+  }
 
-            // Normalize role for company user docs
-            const companyRole = (role === 'admin' || role === 'super_admin') ? role : 'user';
+  async function ensureFirebaseAuthAccount(email, password) {
+    const a = await getSecondaryAuth();
+    let methods = [];
+    try { methods = await a.fetchSignInMethodsForEmail(email); } catch (e) {}
+    if (methods && methods.length) return { status: 'exists' };
+    const cred = await a.createUserWithEmailAndPassword(email, password);
+    const uid = cred.user && cred.user.uid ? cred.user.uid : null;
+    try { await a.signOut(); } catch (e) {}
+    if (!uid) throw new Error('Auth user created without UID');
+    return { status: 'created', uid };
+  }
 
-            const payload = {
-                name,
-                email,
-                role,
-                active: true,
-                companyAccess: access,
-                companyKey: (access.length === 1 ? access[0] : (activeCompanyKey || access[0])),
-                updatedAt: new Date().toISOString()
-            };
 
-            const batch = db.batch();
 
-            // If UID provided, we treat this as a Firebase-auth user and manage company membership docs
-            if (uid) {
-                payload.uid = uid;
-                payload.authProvider = 'firebase';
+async function handleSaveUser() {
+  try {
+    const id = (document.getElementById('um-id').value || '').trim(); // existing doc id (usually the Firebase Auth UID)
+    const name = (document.getElementById('um-name').value || '').trim();
+    const email = (document.getElementById('um-email').value || '').trim().toLowerCase();
+    const passwordPlain = (document.getElementById('um-pass').value || '').trim();
+    const role = document.getElementById('um-role').value || 'employee';
+    const companyAccess = [...document.querySelectorAll('input[name="um-comp"]:checked')].map(x => x.value);
 
-                // Index doc id = uid for consistent management
-                const userDoc = db.collection('app_users').doc(uid);
-                batch.set(userDoc, payload, { merge: true });
+    if (!email || !email.includes('@')) throw new Error('Valid email required.');
+    if (!name) throw new Error('Name required.');
+    if (!companyAccess.length) throw new Error('Select at least one company access.');
 
-                // Write/disable company membership docs
-                for (const ck of ['hvac', 'smart']) {
-                    const ref = db.collection('companies').doc(ck).collection('users').doc(uid);
-                    if (access.includes(ck)) {
-                        batch.set(ref, {
-                            active: true,
-                            role: companyRole,
-                            name,
-                            email,
-                            updatedAt: new Date().toISOString()
-                        }, { merge: true });
-                    } else {
-                        // keep record but revoke access
-                        batch.set(ref, { active: false, updatedAt: new Date().toISOString() }, { merge: true });
-                    }
-                }
+    const nowIso = new Date().toISOString();
 
-                try {
-                    await batch.commit();
-                    closeUserModal();
-                    showToast("User access updated.");
-                } catch (e) {
-                    console.error(e);
-                    showToast("Failed to update user access.", true);
-                }
-                return;
-            }
+    // Load existing record (if any) so we can decide legacy vs firebase and support migrations
+    const usersCol = db.collection('app_users');
+    const existingSnap = id ? await usersCol.doc(id).get() : null;
+    const existing = existingSnap && existingSnap.exists ? existingSnap.data() : null;
+    const existingProvider = (existing && existing.authProvider) ? String(existing.authProvider) : (id ? 'firebase' : 'legacy');
 
-            // Legacy user management (stores password in Firestore; not recommended, but kept for backward compatibility)
-            if (!id && !pass) { showToast("Password is required for legacy users.", true); return; }
+    // Helper: build per-company role map
+    const rolesByCompany = {};
+    for (const c of ['hvac', 'smart']) {
+      rolesByCompany[c] = companyAccess.includes(c) ? role : 'none';
+    }
 
-            payload.authProvider = 'legacy';
-            if (pass) payload.password = btoa(pass);
+    // LEGACY USERS: store password locally (base64) and do NOT create auth user unless admin provided password and secondary auth is available
+    if (existingProvider === 'legacy' && id) {
+      // Keep legacy doc id, update fields (password optional)
+      const payload = {
+        active: true,
+        authProvider: 'legacy',
+        name,
+        email,
+        role,
+        companyAccess,
+        rolesByCompany,
+        updatedAt: nowIso
+      };
+      if (passwordPlain) payload.password = btoa(passwordPlain);
+      await usersCol.doc(id).set(payload, { merge: true });
+      showToast('User saved.', 'success');
+      closeUserModal();
+      return;
+    }
 
-            try {
-                if (id) {
-                    await db.collection('app_users').doc(id).set(payload, { merge: true });
-                } else {
-                    await db.collection('app_users').add(payload);
-                }
-                closeUserModal();
-                showToast("User saved.");
-            } catch (e) {
-                console.error(e);
-                showToast("Failed to save user.", true);
-            }
+    // For NEW users (no id) or users flagged as firebase, we ensure there is a Firebase Auth account.
+    // If password is provided and the email is not in Firebase Auth yet, we can create it via a secondary auth instance.
+    // If it already exists, we cannot set password here; we will send a reset email instead.
+    let targetUid = id || null;
+    let authEnsureResult = null;
+
+    if (passwordPlain) {
+      if (passwordPlain.length < 6) throw new Error('Password must be at least 6 characters (Firebase requirement).');
+      try {
+        authEnsureResult = await ensureFirebaseAuthAccount(email, passwordPlain);
+        if (authEnsureResult.status === 'created') {
+          targetUid = authEnsureResult.uid;
+        } else if (authEnsureResult.status === 'exists') {
+          try {
+            await firebase.auth().sendPasswordResetEmail(email);
+            showToast('Password cannot be set here for existing Auth users. Reset email sent.', 'info');
+          } catch (e) {
+            showToast('Password cannot be set here for existing Auth users. Use "Forgot password?" on the login screen.', 'info');
+          }
         }
+      } catch (e) {
+        // If secondary auth is unavailable or creation fails, we can still save a legacy user as fallback
+        // ONLY for new users (no existing id)
+        if (!id) {
+          const fallbackPayload = {
+            active: true,
+            authProvider: 'legacy',
+            name,
+            email,
+            role,
+            companyAccess,
+            rolesByCompany,
+            password: btoa(passwordPlain),
+            updatedAt: nowIso
+          };
+          const fallbackRef = await usersCol.add(fallbackPayload);
+          showToast('User saved as legacy (no Firebase Auth account created).', 'warning');
+          closeUserModal();
+          return;
+        }
+        throw e;
+      }
+    }
+
+    // If we still don't have a targetUid, we cannot create a Firebase user without a password.
+    if (!targetUid) {
+      throw new Error('Set a password to create a new user account.');
+    }
+
+    // Build firebase-backed user payload (do NOT store plain password; remove any legacy password)
+    const payload = {
+      active: true,
+      authProvider: 'firebase',
+      uid: targetUid,
+      name,
+      email,
+      role,
+      companyAccess,
+      rolesByCompany,
+      updatedAt: nowIso
+    };
+
+    // MIGRATION: if the record existed under a placeholder ID and we created/confirmed a different Auth UID, move the document
+    const oldId = id || null;
+    if (oldId && oldId !== targetUid) {
+      const oldData = existing || {};
+      const merged = { ...oldData, ...payload };
+      delete merged.password;
+
+      // Write to the new UID doc
+      await usersCol.doc(targetUid).set(merged, { merge: true });
+
+      // Remove old UID doc (placeholder)
+      try { await usersCol.doc(oldId).delete(); } catch (e) {}
+
+      // Clean up old per-company user docs if they exist
+      for (const c of ['hvac', 'smart']) {
+        try { await db.collection('companies').doc(c).collection('users').doc(oldId).delete(); } catch (e) {}
+      }
+    } else {
+      // Normal upsert
+      await usersCol.doc(targetUid).set(payload, { merge: true });
+      try { await usersCol.doc(targetUid).set({ password: firebase.firestore.FieldValue.delete() }, { merge: true }); } catch (e) {}
+    }
+
+    // Ensure per-company access docs exist for rule checks / easy queries
+    for (const c of companyAccess) {
+      await db.collection('companies').doc(c).collection('users').doc(targetUid).set({
+        uid: targetUid,
+        active: true,
+        email,
+        name,
+        role: rolesByCompany[c] || role,
+        updatedAt: nowIso
+      }, { merge: true });
+    }
+
+    showToast('User saved.', 'success');
+    closeUserModal();
+  } catch (err) {
+    console.error(err);
+    showToast(err && err.message ? err.message : 'Failed to save user.', 'error');
+  }
+}
+
 
         function toggleContractorSelect() {
             const role = document.getElementById('um-role')?.value;
