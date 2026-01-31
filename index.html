@@ -328,6 +328,7 @@
 
     <!-- SCRIPTS -->
     <script>
+
         
         const COMPANIES = {
             hvac: {
@@ -468,7 +469,6 @@ let storage = null;
             const access = currentUser.companyAccess || (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
             return Array.isArray(access) && access.length > 1;
         }
-        }
 
         function applyCompanyBranding() {
             const meta = COMPANIES[activeCompanyKey] || COMPANIES.hvac;
@@ -551,7 +551,6 @@ let storage = null;
                 }
                 saveSession();
             }
-        }
         }
 
         function handleCompanySwitch(key) {
@@ -665,8 +664,6 @@ let storage = null;
             const isHidden = (pwdInput.type === "password");
             pwdInput.type = isHidden ? "text" : "password";
             if (t) t.textContent = isHidden ? "HIDE" : "SHOW";
-        }
-else { pwdInput.type = "password"; showIcon.classList.remove('hidden'); hideIcon.classList.add('hidden'); }
         }
 
         function toggleMobileMenu() {
@@ -1428,7 +1425,307 @@ if (forceRefresh) refreshCurrentView();
             lucide.createIcons();
         }
 
-        function renderUsers() {
+        
+
+function renderPayments() {
+            const container = document.getElementById('content-area');
+            const isFiltered = !!pendingLedgerFilter;
+            const filteredName = isFiltered ? getContractorNameById(pendingLedgerFilter) : "";
+
+            // Contractor users should never see the global ledger
+            if (currentUser && currentUser.role === 'contractor') {
+                router('my-profile');
+                return;
+            }
+
+            const sorted = payments
+                .slice()
+                .sort((a, b) => new Date(safeDateStr(b.date) || b.createdAt || 0) - new Date(safeDateStr(a.date) || a.createdAt || 0));
+
+            const list = isFiltered ? sorted.filter(p => p.contractorId === pendingLedgerFilter) : sorted;
+
+            const total = list.reduce((acc, p) => acc + (Number.parseFloat(p.amount) || 0), 0);
+
+            const rows = list.map(p => {
+                const cName = getContractorNameById(p.contractorId);
+                const d = safeDateStr(p.date);
+                const amt = money(p.amount);
+                const method = p.method || "-";
+                const memo = (p.description || p.memo || "").toString();
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${d || "-"}</td>
+                        <td class="py-3 px-3 text-sm font-semibold text-slate-800">${cName}</td>
+                        <td class="py-3 px-3 text-sm font-bold text-slate-800 whitespace-nowrap">${amt}</td>
+                        <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${method}</td>
+                        <td class="py-3 px-3 text-sm text-slate-600 max-w-[280px] truncate" title="${memo.replaceAll('"', '&quot;')}">${memo || "-"}</td>
+                        <td class="py-3 px-3 text-sm text-slate-600 action-col whitespace-nowrap">
+                            <button type="button" onclick="openEditPaymentModal('${p.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>
+                        </td>
+                    </tr>
+                `;
+            }).join("");
+
+            container.innerHTML = `
+                <div class="no-print flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">Payment Ledger</h3>
+                        <p class="text-sm text-slate-500">Track and manage contractor payouts.</p>
+                    </div>
+                    <div class="flex items-center gap-0">
+                        <button onclick="window.print()" class="bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-3 py-2 rounded-lg font-bold flex items-center gap-0 shadow-sm text-xs md:text-sm">
+                            <i data-lucide="printer" class="w-4 h-4"></i> Print
+                        </button>
+                    </div>
+                </div>
+
+                ${isFiltered ? `
+                    <div class="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-blue-600 text-white rounded-lg"><i data-lucide="filter" class="w-5 h-5"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-blue-900 uppercase tracking-wider">Filtered Contractor</p>
+                                <p class="font-bold text-slate-800">${filteredName}</p>
+                            </div>
+                        </div>
+                        <button onclick="pendingLedgerFilter=null; router('payments')" class="text-blue-700 font-bold text-sm hover:underline">Clear</button>
+                    </div>
+                ` : ""}
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6 no-print">
+                    <h4 class="font-bold text-slate-800 mb-4 flex items-center gap-0"><i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i> Record a Payment</h4>
+                    <form id="payment-form" class="grid grid-cols-1 md:grid-cols-6 gap-3" onsubmit="event.preventDefault(); return false;">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contractor</label>
+                            <select id="np-contractor" required class="w-full p-2 border border-slate-300 rounded bg-white"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label>
+                            <input type="date" id="np-date" required class="w-full p-2 border border-slate-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Amount</label>
+                            <input type="number" step="0.01" id="np-amount" required placeholder="0.00" class="w-full p-2 border border-slate-300 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Method</label>
+                            <select id="np-method" class="w-full p-2 border border-slate-300 rounded bg-white">
+                                <option>Check</option><option>ACH</option><option>Zelle</option><option>Cash</option><option>Credit Card</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-6">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Memo</label>
+                            <input type="text" id="np-memo" placeholder="Optional" class="w-full p-2 border border-slate-300 rounded">
+                        </div>
+                        <div class="md:col-span-6 flex justify-end">
+                            <button type="button" onclick="handleSavePayment()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-bold shadow-sm">Record Payment</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-green-100 text-green-700 rounded-lg"><i data-lucide="wallet" class="w-5 h-5"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total in View</p>
+                                <p class="text-lg font-bold text-slate-800">${money(total)}</p>
+                            </div>
+                        </div>
+                        <div class="text-xs text-slate-500">${list.length} payment(s)</div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                <tr>
+                                    <th class="py-3 px-3">Date</th>
+                                    <th class="py-3 px-3">Contractor</th>
+                                    <th class="py-3 px-3">Amount</th>
+                                    <th class="py-3 px-3">Method</th>
+                                    <th class="py-3 px-3">Memo</th>
+                                    <th class="py-3 px-3 action-col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows || `<tr><td colspan="6" class="py-10 text-center text-slate-400">No payments found.</td></tr>`}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // initialize form defaults
+            const contractorSelect = document.getElementById('np-contractor');
+            populateContractorSelect(contractorSelect, { selectedId: pendingLedgerFilter || "" });
+            const dateInput = document.getElementById('np-date');
+            if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().split('T')[0];
+
+            lucide.createIcons();
+        }
+
+function renderReports() {
+            const container = document.getElementById('content-area');
+
+            // Contractor users should never see reports
+            if (currentUser && currentUser.role === 'contractor') {
+                router('my-profile');
+                return;
+            }
+
+            const currentYear = new Date().getFullYear();
+            const yearSelectId = "rp-year";
+
+            const selectedYear = window.__reportsYear || currentYear;
+            const yearStr = String(selectedYear);
+
+            const yearPayments = payments.filter(p => safeDateStr(p.date).startsWith(yearStr));
+
+            const totalsByContractor = {};
+            yearPayments.forEach(p => {
+                const cid = p.contractorId || "unknown";
+                totalsByContractor[cid] = (totalsByContractor[cid] || 0) + (Number.parseFloat(p.amount) || 0);
+            });
+
+            const rows = Object.entries(totalsByContractor)
+                .map(([cid, total]) => {
+                    const c = contractors.find(x => x.id === cid);
+                    const name = c ? (c.businessName || "Unnamed Contractor") : "Unknown";
+                    const hasFiles = !!(c && (c.w9OnFile || (c.files && c.files.length)));
+                    const eligible1099 = total >= 600;
+                    return { cid, name, total, hasFiles, eligible1099 };
+                })
+                .sort((a, b) => b.total - a.total);
+
+            const totalPaid = rows.reduce((acc, r) => acc + r.total, 0);
+            const eligibleCount = rows.filter(r => r.eligible1099).length;
+
+            const missingW9List = contractors
+                .filter(c => !(c.w9OnFile || (c.files && c.files.length)))
+                .slice()
+                .sort((a, b) => (a.businessName || "").localeCompare((b.businessName || "")));
+
+            container.innerHTML = `
+                <div class="no-print flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">Financial Reports</h3>
+                        <p class="text-sm text-slate-500">1099 totals & compliance overview.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-0">
+                        <div class="bg-white border border-slate-200 rounded-lg px-3 py-2 flex items-center gap-0 shadow-sm">
+                            <i data-lucide="calendar" class="w-4 h-4 text-slate-500"></i>
+                            <select id="${yearSelectId}" class="text-sm font-bold text-slate-700 bg-transparent outline-none">
+                                ${[currentYear, currentYear-1, currentYear-2].map(y => `<option value="${y}" ${y === selectedYear ? "selected" : ""}>${y}</option>`).join("")}
+                            </select>
+                        </div>
+                        <button onclick="window.print()" class="bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 px-3 py-2 rounded-lg font-bold flex items-center gap-0 shadow-sm text-xs md:text-sm">
+                            <i data-lucide="printer" class="w-4 h-4"></i> Print
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+                        <div class="p-3 bg-green-100 text-green-700 rounded-full"><i data-lucide="dollar-sign" class="w-6 h-6"></i></div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-500 uppercase">Total Paid (${selectedYear})</p>
+                            <p class="text-2xl font-bold text-slate-800">${money(totalPaid)}</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+                        <div class="p-3 bg-purple-100 text-purple-700 rounded-full"><i data-lucide="file-text" class="w-6 h-6"></i></div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-500 uppercase">1099 Eligible (≥ $600)</p>
+                            <p class="text-2xl font-bold text-slate-800">${eligibleCount}</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+                        <div class="p-3 bg-red-100 text-red-700 rounded-full"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-500 uppercase">Missing W9 / Docs</p>
+                            <p class="text-2xl font-bold text-slate-800">${missingW9List.length}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-slate-100 text-slate-600 rounded-lg"><i data-lucide="bar-chart-3" class="w-5 h-5"></i></div>
+                                <div>
+                                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">1099 Summary</p>
+                                    <p class="font-bold text-slate-800">${selectedYear}</p>
+                                </div>
+                            </div>
+                            <div class="text-xs text-slate-500">${rows.length} contractor(s)</div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                    <tr>
+                                        <th class="py-3 px-3">Contractor</th>
+                                        <th class="py-3 px-3">Total</th>
+                                        <th class="py-3 px-3">1099</th>
+                                        <th class="py-3 px-3">Docs</th>
+                                        <th class="py-3 px-3 action-col">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows.map(r => `
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="py-3 px-3 font-semibold text-slate-800">${r.name}</td>
+                                            <td class="py-3 px-3 font-bold text-slate-800 whitespace-nowrap">${money(r.total)}</td>
+                                            <td class="py-3 px-3">
+                                                ${r.eligible1099 ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">Eligible</span>` : `<span class="bg-slate-100 text-slate-600 px-2 py-1 rounded-full text-xs font-bold">—</span>`}
+                                            </td>
+                                            <td class="py-3 px-3">
+                                                ${r.hasFiles ? `<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-bold">On File</span>` : `<span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">Missing</span>`}
+                                            </td>
+                                            <td class="py-3 px-3 action-col whitespace-nowrap">
+                                                <button onclick="goToPaymentLedger('${r.cid}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">View Ledger</button>
+                                            </td>
+                                        </tr>
+                                    `).join("") || `<tr><td colspan="5" class="py-10 text-center text-slate-400">No payments found for ${selectedYear}.</td></tr>`}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex items-center gap-3">
+                            <div class="p-2 bg-orange-100 text-orange-700 rounded-lg"><i data-lucide="folder-x" class="w-5 h-5"></i></div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Compliance</p>
+                                <p class="font-bold text-slate-800">Missing Documents</p>
+                            </div>
+                        </div>
+                        <div class="p-4 space-y-2 max-h-[420px] overflow-y-auto">
+                            ${missingW9List.map(c => `
+                                <div class="flex items-center justify-between gap-0 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div class="min-w-0">
+                                        <p class="font-bold text-slate-800 truncate">${c.businessName || "Unnamed Contractor"}</p>
+                                        <p class="text-xs text-slate-500 truncate">${c.ein || ""}</p>
+                                    </div>
+                                    <button onclick="openEditModal('${c.id}')" class="text-blue-600 hover:underline text-xs font-bold whitespace-nowrap">Fix</button>
+                                </div>
+                            `).join("") || `<p class="text-center text-slate-400 py-8">All set. No missing documents.</p>`}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const yearSelect = document.getElementById(yearSelectId);
+            if (yearSelect) {
+                yearSelect.addEventListener('change', () => {
+                    window.__reportsYear = Number.parseInt(yearSelect.value, 10);
+                    renderReports();
+                });
+            }
+
+            lucide.createIcons();
+        }
+
+function renderUsers() {
             const container = document.getElementById('content-area');
 
             const isAdmin = !!(currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
@@ -1444,20 +1741,7 @@ if (forceRefresh) refreshCurrentView();
                 return;
             }
 
-            const migrateBox = `
-<div class="bg-white p-4 rounded-xl border border-slate-200 mb-4">
-    <div class="flex items-center justify-between gap-3 flex-wrap">
-        <div class="flex items-center gap-2">
-            <i data-lucide="database" class="w-5 h-5 text-slate-600"></i>
-            <div>
-                <div class="font-extrabold text-slate-800">Data Migration Tool</div>
-                <div class="text-xs text-slate-500">Admin-only: migrate legacy D2 Smart data into this unified database (companyKey = "smart").</div>
-            </div>
-        </div>
-        <button onclick="openMigrationModal()" class="px-4 py-2 rounded-lg bg-slate-900 text-white font-bold hover:bg-slate-800">Open Migration Tool</button>
-    </div>
-</div>`;
-const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
+            const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
             const migrateBox = showMigration ? `
                 <div class="bg-white border border-amber-200 rounded-xl p-5 mb-4">
                     <div class="flex items-start justify-between gap-4">
@@ -1884,11 +2168,6 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                 prompt("Copy this onboarding link:", link);
             }
         }
-            } catch (e) {
-                console.error(e);
-                prompt("Copy this onboarding link:", link);
-            }
-        }
 
         // --- GLOBAL UI HELPERS ---
         function closeEditModal() {
@@ -1911,6 +2190,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
             toast.classList.remove("translate-y-20");
             setTimeout(() => toast.classList.add("translate-y-20"), duration);
         }
-    </script>
+    
+</script>
 </body>
 </html>
