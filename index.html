@@ -460,6 +460,20 @@ const BOOTSTRAP_USERS = {
             return SUPER_ADMIN_EMAILS.has((emailLower || "").toLowerCase());
         }
 
+        
+  function isTruthySuperAdmin(u) {
+    if (!u) return false;
+    const role = String(u.role || "").toLowerCase();
+    const flag = u.isSuperAdmin;
+    const flagBool = (flag === true) || (flag === 1) || (flag === "1") || (flag === "true") || (flag === "TRUE");
+    return isSuperAdminEmail(u.email || "") || role === "super_admin" || flagBool;
+  }
+// Super-admin is determined by allowlisted email (single source of truth)
+        function isSuperAdmin() {
+            return !!(currentUser && isSuperAdminEmail(currentUser.email));
+        }
+
+
         async function syncCompanyMembership(uid, profile) {
             try {
                 const access = Array.isArray(profile?.companyAccess) ? profile.companyAccess : (profile?.companyKey ? [profile.companyKey] : []);
@@ -543,6 +557,8 @@ let storage = null;
         let contractors = [];
         let payments = [];
         let appUsers = [];
+        let usersLoading = false;
+        let usersLoadError = null;
         let currentUser = null; 
         let isPublicMode = false;
         let pendingLedgerFilter = null; 
@@ -774,6 +790,9 @@ let storage = null;
                     const sess = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
                     if (sess && sess.user) {
                         currentUser = sess.user;
+        // Normalize super-admin flag after restoring session
+        currentUser.isSuperAdmin = isTruthySuperAdmin(currentUser);
+
                         if (sess.company) activeCompanyKey = normalizeCompanyKey(sess.company);
                         grantAccess(false);
                     } else {
@@ -1168,6 +1187,9 @@ let storage = null;
                 }
 
                 currentUser = foundUser;
+      // Normalize super-admin flag (supports older records where isSuperAdmin may be stored as a string)
+      currentUser.isSuperAdmin = isTruthySuperAdmin(currentUser);
+
 
                 // Normalize access/roles
                 if (!Array.isArray(currentUser.companyAccess)) {
@@ -1220,6 +1242,82 @@ function grantAccess(isNewLogin) {
         let _unsubs = [];
         function clearListeners() {
             try { _unsubs.forEach(u => u && u()); } catch(e) {}
+
+        async function ensureUsersLoaded(force=false) {
+            if (!window.currentUser || window.!isTruthySuperAdmin(currentUser)) return;
+            if (usersLoading && !force) return;
+
+            usersLoading = true;
+            usersLoadError = null;
+
+            const mergedById = new Map();
+
+            const mergeUser = (u) => {
+                if (!u) return;
+                const id = u.id || u.uid || u.email;
+                if (!id) return;
+                const prev = mergedById.get(id) || {};
+                const next = {
+                    ...prev,
+                    ...u,
+                    id,
+                    uid: u.uid || u.id || prev.uid || id,
+                    email: (u.email || prev.email || "").toLowerCase(),
+                    name: u.name || prev.name || "",
+                    companyAccess: Array.isArray(u.companyAccess) ? u.companyAccess : (Array.isArray(prev.companyAccess) ? prev.companyAccess : []),
+                    rolesByCompany: u.rolesByCompany || prev.rolesByCompany || {}
+                };
+                mergedById.set(id, next);
+            };
+
+            try {
+                const snap = await db.collection('app_users').get();
+                snap.docs.forEach(d => mergeUser({ id: d.id, ...d.data() }));
+            } catch (e) {
+                usersLoadError = e;
+            }
+
+            try {
+                const companyKeys = ['hvac', 'smart'];
+                for (const ck of companyKeys) {
+                    const s = await db.collection('companies').doc(ck).collection('users').get();
+                    s.docs.forEach(d => {
+                        const data = d.data() || {};
+                        const base = mergedById.get(d.id) || {};
+                        const companyAccess = new Set([...(base.companyAccess || [])]);
+                        if (data.active !== false) companyAccess.add(ck);
+                        const rolesByCompany = { ...(base.rolesByCompany || {}) };
+                        if (data.role) rolesByCompany[ck] = data.role;
+                        mergeUser({
+                            id: d.id,
+                            uid: d.id,
+                            email: data.email || base.email,
+                            name: data.name || base.name,
+                            companyAccess: Array.from(companyAccess),
+                            rolesByCompany,
+                            role: base.role || data.role || 'employee',
+                            updatedAt: data.updatedAt || base.updatedAt,
+                            createdAt: data.createdAt || base.createdAt,
+                            active: (data.active !== false)
+                        });
+                    });
+                }
+            } catch (e) {
+                if (!usersLoadError) usersLoadError = e;
+            }
+
+            appUsers = Array.from(mergedById.values())
+                .map(u => {
+                    const ca = Array.isArray(u.companyAccess) ? u.companyAccess.map(normalizeCompanyKey) : [];
+                    return { ...u, companyAccess: ca, companyKey: normalizeCompanyKey(u.companyKey || (ca[0] || 'hvac')) };
+                })
+                .sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
+
+            usersLoading = false;
+
+            if (window.currentView === 'users') renderUsers();
+        }
+
             _unsubs = [];
         }
 
@@ -1273,7 +1371,7 @@ function grantAccess(isNewLogin) {
             _unsubs.push(unsubPayments);
 
             // Users (admin-only)
-            if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true)) {
+            if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || isTruthySuperAdmin(currentUser))) {
                 const usersRef = root.collection('app_users');
 
                 // Firestore rules frequently require scoped queries. We load users by workspace access.
@@ -1285,6 +1383,12 @@ function grantAccess(isNewLogin) {
                         (arr || []).forEach(u => merged.set(u.id, u));
                     });
                     const all = Array.from(merged.values());
+
+                    if ((window.currentUser && window.isTruthySuperAdmin(currentUser)) && all.length === 0 && !usersLoading) {
+                        ensureUsersLoaded();
+                        return;
+                    }
+
 
                     appUsers = all.map(u => {
                         const ca = Array.isArray(u.companyAccess)
@@ -1358,7 +1462,7 @@ if (forceRefresh) refreshCurrentView();
                 nav.innerHTML += createBtn('payments', 'dollar-sign', 'Payments', "pendingLedgerFilter = null; router('payments'); if(window.innerWidth < 768) toggleMobileMenu();");
                 nav.innerHTML += createBtn('reports', 'file-bar-chart', 'Financial Reports');
             } else { nav.innerHTML += createBtn('my-profile', 'user', 'My Profile'); }
-            if (currentUser && currentUser.isSuperAdmin === true) nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
+            if (currentUser && isTruthySuperAdmin(currentUser)) nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
             lucide.createIcons();
         }
 
@@ -2213,7 +2317,7 @@ function renderReports() {
 function renderUsers() {
             const container = document.getElementById('content-area');
 
-            const canManage = !!(currentUser && currentUser.isSuperAdmin === true);
+            const canManage = !!(currentUser && isTruthySuperAdmin(currentUser));
 
             if (!canManage) {
                 container.innerHTML = `
@@ -2226,7 +2330,11 @@ function renderUsers() {
                 return;
             }
 
-            const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
+            if (appUsers.length === 0 && !usersLoading && window.currentUser && window.isTruthySuperAdmin(currentUser)) {
+                ensureUsersLoaded();
+            }
+
+            const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || isTruthySuperAdmin(currentUser)));
             const migrateBox = showMigration ? `
                 <div class="bg-white border border-amber-200 rounded-xl p-5 mb-4">
                     <div class="flex items-start justify-between gap-4">
@@ -2313,7 +2421,7 @@ function renderUsers() {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${rows || `<tr><td colspan="5" class="py-10 text-center text-slate-400">No users found.</td></tr>`}
+                                ${(rows && rows.trim()) ? rows : (usersLoading ? `<tr><td colspan=\"5\" class=\"py-10 text-center text-slate-400\">Loading users...</td></tr>` : (usersLoadError ? `<tr><td colspan=\"5\" class=\"py-10 text-center text-red-500\">Unable to load users. Check Firestore rules/permissions.</td></tr>` : `<tr><td colspan=\"5\" class=\"py-10 text-center text-slate-400\">No users found.</td></tr>`))}
                             </tbody>
                         </table>
                     </div>
@@ -2676,7 +2784,16 @@ function renderUsers() {
             toast.classList.remove("translate-y-20");
             setTimeout(() => toast.classList.add("translate-y-20"), duration);
         }
-    
+        // --- BOOTSTRAP ---
+        window.addEventListener('DOMContentLoaded', () => {
+            Promise.resolve()
+                .then(() => initApp())
+                .catch((e) => {
+                    console.error(e);
+                    try { showToast("App initialization error"); } catch(_){}
+                });
+        });
+
 </script>
 </body>
 </html>
