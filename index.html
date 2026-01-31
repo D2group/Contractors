@@ -1129,8 +1129,16 @@ let storage = null;
                             const doc = snapshot.docs[0];
                             const data = doc.data();
                             const storedPass = String(data.password || '');
-        const passB64 = btoa(pass);
-        if (storedPass === pass || storedPass === passB64) {
+
+                            const storedEnc = String(data.passwordEnc || '');
+
+                            const passB64 = btoa(pass);
+
+                            let storedPlainFromEnc = '';
+
+                            try { storedPlainFromEnc = storedEnc ? atob(storedEnc) : ''; } catch(e) {}
+
+                            if (storedPass === pass || storedPass === passB64 || storedEnc === passB64 || storedPlainFromEnc === pass) {
                                 foundUser = { ...data, id: doc.id, authProvider: 'legacy' };
 
                         // Enforce company access for legacy accounts
@@ -1225,9 +1233,14 @@ function grantAccess(isNewLogin) {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('sidebar').classList.remove('hidden');
             document.getElementById('main-content').classList.remove('hidden');
-            document.getElementById('user-name-display').textContent = currentUser.name || currentUser.email;
+            const rawName = (currentUser && currentUser.name) ? String(currentUser.name).trim() : '';
+        const displayName = currentUser.isSuperAdmin
+            ? (rawName && !rawName.includes('@') ? rawName : 'Dante Frota')
+            : (rawName && !rawName.includes('@') ? rawName : currentUser.email);
+        document.getElementById('user-name-display').textContent = displayName;
             document.getElementById('user-role-display').textContent = (currentUser.isSuperAdmin ? 'SUPER ADMIN' : (currentUser.role || 'employee').toUpperCase());
-            document.getElementById('user-initials-display').textContent = (currentUser.name || "User").split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            const initialsSource = (displayName || '').includes('@') ? (displayName.split('@')[0].replace(/[^a-zA-Z]/g,' ')) : (displayName || 'User');
+            document.getElementById('user-initials-display').textContent = initialsSource.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase();
             initApp(isNewLogin);
         }
 
@@ -1244,7 +1257,7 @@ function grantAccess(isNewLogin) {
             try { _unsubs.forEach(u => u && u()); } catch(e) {}
 
         async function ensureUsersLoaded(force=false) {
-            if (!window.currentUser || window.!isTruthySuperAdmin(currentUser)) return;
+            if (!window.currentUser || !isTruthySuperAdmin(window.currentUser)) return;
             if (usersLoading && !force) return;
 
             usersLoading = true;
@@ -1741,14 +1754,27 @@ if (forceRefresh) refreshCurrentView();
 
   async function ensureFirebaseAuthAccount(email, password) {
     const a = await getSecondaryAuth();
-    let methods = [];
-    try { methods = await a.fetchSignInMethodsForEmail(email); } catch (e) {}
-    if (methods && methods.length) return { status: 'exists' };
-    const cred = await a.createUserWithEmailAndPassword(email, password);
-    const uid = cred.user && cred.user.uid ? cred.user.uid : null;
-    try { await a.signOut(); } catch (e) {}
-    if (!uid) throw new Error('Auth user created without UID');
-    return { status: 'created', uid };
+    try {
+      const cred = await a.signInWithEmailAndPassword(email, password);
+      const uid = cred?.user?.uid || null;
+      try { await a.signOut(); } catch (e) {}
+      if (!uid) throw new Error('Auth sign-in returned no UID');
+      return { status: 'signed_in', uid };
+    } catch (e) {
+      const code = e && e.code ? String(e.code) : '';
+      if (code === 'auth/operation-not-allowed') {
+        throw new Error('EMAIL_PASSWORD_DISABLED');
+      }
+      if (code === 'auth/user-not-found') {
+        const cred = await a.createUserWithEmailAndPassword(email, password);
+        const uid = cred?.user?.uid || null;
+        try { await a.signOut(); } catch (e2) {}
+        if (!uid) throw new Error('Auth user created without UID');
+        return { status: 'created', uid };
+      }
+      try { await a.signOut(); } catch (e2) {}
+      throw e;
+    }
   }
 
 
@@ -1783,7 +1809,8 @@ if (forceRefresh) refreshCurrentView();
 
       for (const pw of passwords) {
         try {
-          uid = await ensureFirebaseAuthAccount(email, pw);
+          const ensured = await ensureFirebaseAuthAccount(email, pw);
+          uid = ensured.uid;
           usedPassword = pw;
           break;
         } catch (e) {
@@ -1885,7 +1912,7 @@ async function handleSaveUser(){
                   return;
               }
               try {
-                  uid = await ensureFirebaseAuthAccount(email, passwordPlain);
+                  uid = (await ensureFirebaseAuthAccount(email, passwordPlain)).uid;
               } catch (e) {
                   showToast('Could not create Firebase Auth user: ' + (e && e.message ? e.message : e));
                   return;
