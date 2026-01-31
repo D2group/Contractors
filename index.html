@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- BUILD: 2026-01-30-LOGINFIX-1 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>D2 Contractors - Contractor Manager</title>
@@ -19,11 +18,6 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-storage-compat.js"></script>
 
     <style>
-
-        input[type="password"]::-ms-reveal,
-        input[type="password"]::-ms-clear { display: none; }
-        input[type="password"]::-webkit-credentials-auto-fill-button,
-        input[type="password"]::-webkit-contacts-auto-fill-button { visibility: hidden; display: none !important; }
 
         /* Print header base (hidden on screen) */
         .print-header { display: none; }
@@ -118,62 +112,7 @@
     </div>
 
 
-    
-    <!-- Company Settings modal (Super Admin) -->
-    <div id="company-settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 no-print">
-        <div class="absolute inset-0 bg-black/40" onclick="closeCompanySettingsModal()"></div>
-        <div class="relative bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-            <div class="p-5 border-b border-slate-200 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <i data-lucide="settings" class="w-5 h-5 text-slate-700"></i>
-                    <div>
-                        <div class="text-sm font-bold text-slate-900">Company Settings</div>
-                        <div class="text-xs text-slate-500">Super admin only: edit company names/logos used in the app, links, and printed reports.</div>
-                    </div>
-                </div>
-                <button class="p-2 rounded-lg hover:bg-slate-100" onclick="closeCompanySettingsModal()">
-                    <i data-lucide="x" class="w-5 h-5 text-slate-600"></i>
-                </button>
-            </div>
-
-            <div class="p-5 space-y-4">
-                <div class="grid md:grid-cols-2 gap-4">
-                    <div class="border border-slate-200 rounded-xl p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <img src="logo-D2-HVAC-Solutions-preto.png" class="h-7 object-contain" alt="HVAC logo">
-                            <div class="font-extrabold text-slate-800">HVAC</div>
-                        </div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1">Display name</label>
-                        <input id="cs-hvac-label" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="D2 HVAC Solutions">
-                        <label class="block text-xs font-bold text-slate-600 mt-3 mb-1">Logo filename (repo root)</label>
-                        <input id="cs-hvac-logo" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="logo-D2-HVAC-Solutions-preto.png">
-                    </div>
-
-                    <div class="border border-slate-200 rounded-xl p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <img src="logo-D2-SmartHome-preto.png" class="h-7 object-contain" alt="Smart logo">
-                            <div class="font-extrabold text-slate-800">SMART</div>
-                        </div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1">Display name</label>
-                        <input id="cs-smart-label" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="D2 Smart Home">
-                        <label class="block text-xs font-bold text-slate-600 mt-3 mb-1">Logo filename (repo root)</label>
-                        <input id="cs-smart-logo" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="logo-D2-SmartHome-preto.png">
-                    </div>
-                </div>
-
-                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600">
-                    Upload the PNG logo files to the same folder as <code class="bg-white border border-slate-200 px-1 rounded">index.html</code>. Use the exact filename above.
-                </div>
-            </div>
-
-            <div class="p-5 border-t border-slate-200 flex items-center justify-end gap-2">
-                <button class="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-sm font-bold" onclick="closeCompanySettingsModal()">Cancel</button>
-                <button class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-extrabold" onclick="saveCompanySettings()">Save</button>
-            </div>
-        </div>
-    </div>
-
-<!-- MOBILE OVERLAY BACKDROP -->
+    <!-- MOBILE OVERLAY BACKDROP -->
     <div id="mobile-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-slate-900/50 z-40 hidden md:hidden backdrop-blur-sm transition-opacity"></div>
 
     <!-- PUBLIC ONBOARDING VIEW -->
@@ -235,9 +174,7 @@
                 <div class="relative">
                     <input type="password" id="password" autocapitalize="none" class="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Password" required>
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="lock" class="w-5 h-5"></i></div>
-                    <button type="button" onclick="toggleLoginPassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center justify-center text-slate-600 hover:text-blue-700 transition-colors z-10 cursor-pointer">
-                        <span id="pwToggleText" class="text-[11px] font-extrabold tracking-wider">SHOW</span>
-                    </button>
+                    <button type="button" onclick="toggleLoginPassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center justify-center text-slate-600 hover:text-blue-700 transition-colors z-10 cursor-pointer"><span id="pwToggleText" class="text-[11px] font-extrabold tracking-wider">SHOW</span></button>
                 </div>
                 
                 <div class="flex justify-end">
@@ -422,38 +359,6 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
-        // Runtime overrides loaded from Firestore (/companies/{companyKey})
-        let COMPANY_OVERRIDES = {};
-
-        function getCompanyMeta(companyKey) {
-            const base = COMPANIES[companyKey] || COMPANIES.hvac;
-            const o = COMPANY_OVERRIDES[companyKey] || {};
-            return Object.assign({}, base, o);
-        }
-
-        async function loadCompanyOverrides() {
-            try {
-                const keys = Object.keys(COMPANIES);
-                const out = {};
-                for (const k of keys) {
-                    const snap = await db.collection("companies").doc(k).get();
-                    if (snap.exists) {
-                        const d = snap.data() || {};
-                        const o = {};
-                        if (typeof d.label === "string" && d.label.trim()) o.label = d.label.trim();
-                        if (typeof d.shortLabel === "string" && d.shortLabel.trim()) o.shortLabel = d.shortLabel.trim();
-                        if (typeof d.logo === "string" && d.logo.trim()) o.logo = d.logo.trim();
-                        out[k] = o;
-                    }
-                }
-                COMPANY_OVERRIDES = out;
-            } catch (e) {
-                console.warn("Company overrides load failed:", e);
-                COMPANY_OVERRIDES = {};
-            }
-        }
-
-
 // ===== Legacy Source (D2 Smart) - Migration Only =====
 const smartFirebaseConfig = {
   apiKey: "AIzaSyBo6J5AuNlYN3CvzQiqRh9yIsJ5GFctuOc",
@@ -562,9 +467,10 @@ let storage = null;
             const access = currentUser.companyAccess || (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
             return Array.isArray(access) && access.length > 1;
         }
+        }
 
         function applyCompanyBranding() {
-            const meta = getCompanyMeta(activeCompanyKey);
+            const meta = COMPANIES[activeCompanyKey] || COMPANIES.hvac;
 
             // Company context logos (screen + print + link modal)
             const headerLogo = document.getElementById("header-company-logo");
@@ -645,6 +551,7 @@ let storage = null;
                 saveSession();
             }
         }
+        }
 
         function handleCompanySwitch(key) {
             if (!canSwitchCompany()) return;
@@ -654,9 +561,8 @@ let storage = null;
         }
 
         
-        window.onload = async function() {
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
-            await loadCompanyOverrides();
+        window.onload = function() {
+            lucide.createIcons();
             if (urlParams.get('mode') === 'onboard') {
                 isPublicMode = true;
                 initPublicMode();
@@ -759,7 +665,8 @@ let storage = null;
             pwdInput.type = isHidden ? "text" : "password";
             if (t) t.textContent = isHidden ? "HIDE" : "SHOW";
         }
-        
+else { pwdInput.type = "password"; showIcon.classList.remove('hidden'); hideIcon.classList.add('hidden'); }
+        }
 
         function toggleMobileMenu() {
             const sidebar = document.getElementById('sidebar');
@@ -821,7 +728,7 @@ let storage = null;
             try {
                 await ensureFirebaseAuth();
 
-                let selectedCompany = normalizeCompanyKey(activeCompanyKey || getSavedCompanyKey());
+                const selectedCompany = normalizeCompanyKey(activeCompanyKey || getSavedCompanyKey());
                 let foundUser = null;
 
                 // 1) PRIMARY: Firebase Email/Password auth (supports password reset)
@@ -990,13 +897,11 @@ let storage = null;
                 grantAccess(true);
 
             } catch (err) {
-                const code = (err && err.code) ? err.code : '';
-
                 console.error(err);
-                errorDiv.textContent = String(err.message || "Login failed.") + (code ? ' ('+code+')' : '');
+                errorDiv.textContent = err.message || "Login failed.";
                 errorDiv.classList.remove('hidden');
             } finally {
-                btn.textContent = "Sign In"; btn.disabled = false;
+                btn.textContent = "Log In"; btn.disabled = false;
             }
         }
 
@@ -1133,7 +1038,7 @@ if (forceRefresh) refreshCurrentView();
                 nav.innerHTML += createBtn('reports', 'file-bar-chart', 'Financial Reports');
             } else { nav.innerHTML += createBtn('my-profile', 'user', 'My Profile'); }
             if (role === 'admin' || role === 'super_admin' || (currentUser && currentUser.isSuperAdmin === true)) nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+            lucide.createIcons();
         }
 
         function router(view) {
@@ -1155,7 +1060,7 @@ if (forceRefresh) refreshCurrentView();
             else if(view === 'reports') renderReports();
             else if(view === 'users') renderUsers();
             else if(view === 'my-profile') renderContractorPortal();
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+            lucide.createIcons();
         }
 
         // --- RENDERERS ---
@@ -1172,7 +1077,7 @@ if (forceRefresh) refreshCurrentView();
                 return `<div onclick="goToPaymentLedger('${p.contractorId}')" class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 transition-all cursor-pointer"><div class="flex items-center gap-3"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs border border-slate-200">${c.businessName.substring(0,2).toUpperCase()}</div><div><p class="font-bold text-slate-800 text-xs md:text-sm">${c.businessName}</p><p class="text-[10px] md:text-xs text-slate-500">${p.date}</p></div></div><span class="font-bold text-slate-700 text-sm md:text-base">$${parseFloat(p.amount).toLocaleString()}</span></div>`; 
             }).join('');
             container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8"><div onclick="router('contractors')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-blue-100 text-blue-600 rounded-full"><i data-lucide="users"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">Contractors</p><h3 class="text-3xl font-bold text-slate-800">${totalC}</h3></div></div><div onclick="router('payments'); pendingLedgerFilter=null;" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-green-100 text-green-600 rounded-full"><i data-lucide="dollar-sign"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">YTD Payout</p><h3 class="text-3xl font-bold text-slate-800">$${ytd.toLocaleString()}</h3></div></div><div onclick="router('reports')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-purple-100 text-purple-600 rounded-full"><i data-lucide="file-check"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">Files on Record</p><h3 class="text-3xl font-bold text-slate-800">${w9Count} / ${totalC}</h3></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200"><h3 class="font-bold text-lg mb-4 text-slate-800">Recent Transactions</h3><div class="space-y-3">${recentHtml || '<p class="text-slate-400 text-center py-4">No payments yet.</p>'}</div></div><div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200"><div class="flex items-center gap-3 mb-4"><div class="p-2 bg-orange-100 text-orange-600 rounded-lg"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div><h3 class="font-bold text-lg text-slate-800">Pending Compliance</h3></div><div class="space-y-4"><div class="flex justify-between items-center p-3 bg-slate-50 rounded border border-slate-100"><span class="text-sm font-bold text-slate-600">Missing W9 Forms</span><span class="bg-red-100 text-red-600 px-3 py-1 rounded-full font-bold text-xs">${missingW9} Contractors</span></div><button onclick="router('reports')" class="w-full text-center text-blue-600 text-sm font-bold hover:underline">View Compliance Report</button></div></div></div>`;
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+            lucide.createIcons();
         }
 
         window.goToPaymentLedger = (contractorId) => { pendingLedgerFilter = contractorId; router('payments'); };
@@ -1187,7 +1092,7 @@ if (forceRefresh) refreshCurrentView();
             filterContractors(); 
             // Drag Drop init
             setupDragAndDrop('nc-drop-zone', 'nc-file', 'nc-file-name');
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+            lucide.createIcons();
         }
 
         function filterContractors() {
@@ -1197,7 +1102,7 @@ if (forceRefresh) refreshCurrentView();
             const filtered = contractors.filter(c => (c.businessName || '').toLowerCase().includes(query) || (c.ein || '').includes(query));
             list.innerHTML = filtered.map(c => `<div onclick='openEditModal("${c.id}")' class="cursor-pointer bg-white p-5 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col justify-between group relative"><div class="absolute top-4 right-4 text-slate-300 group-hover:text-blue-500 transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i></div><div><div class="flex items-center gap-0 mb-2 pr-6"><h3 class="font-bold text-lg text-slate-800">${c.businessName}</h3>${(c.w9OnFile || (c.files && c.files.length > 0)) ? '<i data-lucide="folder-check" class="w-4 h-4 text-green-500"></i>' : ''}</div><div class="space-y-1 text-sm text-slate-500"><p><span class="font-mono bg-slate-100 px-1 rounded text-xs text-slate-600">${c.ein || '-'}</span></p><p>${c.contactName || '-'}</p></div></div><div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400"><span class="truncate max-w-[150px]">${c.address || '-'}</span><span class="text-blue-600 font-semibold group-hover:underline">Manage Files</span></div></div>`).join('');
             if(filtered.length === 0) list.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400 bg-slate-50 rounded border border-dashed border-slate-300">No contractors found.</div>`;
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+            lucide.createIcons();
         }
 
         // --- EDIT MODAL LOGIC (MULTI-FILE & RENAME) ---
@@ -1225,7 +1130,7 @@ if (forceRefresh) refreshCurrentView();
                 listContainer.innerHTML = '<p class="text-sm text-slate-400 italic text-center py-2">No files attached yet.</p>';
             } else {
                 listContainer.innerHTML = currentEditingFiles.map((f, i) => `<div class="flex items-center justify-between bg-white p-2 rounded border border-slate-100"><div class="flex items-center gap-0 overflow-hidden flex-1"><i data-lucide="file-text" class="w-4 h-4 text-blue-500 shrink-0"></i><input type="text" value="${f.name || 'Document'}" onchange="updateFileName(${i}, this.value)" class="text-xs font-bold text-slate-700 border-b border-transparent hover:border-slate-300 focus:border-blue-500 bg-transparent outline-none w-full truncate"></div><div class="flex items-center gap-0 shrink-0"><a href="${f.url}" target="_blank" class="text-blue-600 hover:bg-blue-50 p-1 rounded"><i data-lucide="eye" class="w-4 h-4"></i></a><button type="button" onclick="deleteFileFromList(${i})" class="text-red-500 hover:bg-red-50 p-1 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>`).join('');
-                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+                lucide.createIcons();
             }
         }
         window.updateFileName = function(index, newName) { if(currentEditingFiles[index]) currentEditingFiles[index].name = newName; }
@@ -1519,7 +1424,7 @@ if (forceRefresh) refreshCurrentView();
 
             if (title) title.textContent = id ? "Edit User" : "Add User";
             if (modal) modal.classList.remove('hidden');
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+            lucide.createIcons();
         }
 
         function renderUsers() {
@@ -1534,27 +1439,24 @@ if (forceRefresh) refreshCurrentView();
                     <p class="font-bold text-slate-800 mb-1">Access Restricted</p>
                     <p class="text-sm">Only admins can manage users.</p>
                 </div>`;
-                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+                lucide.createIcons();
                 return;
             }
-const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
-            const showCompanySettings = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
-            const companySettingsBox = showCompanySettings ? `
-                <div class="bg-white border border-slate-200 rounded-xl p-5 mb-4">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <div class="flex items-center gap-2 text-slate-800 font-extrabold">
-                                <i data-lucide="settings" class="w-5 h-5"></i>
-                                <span>Company Branding</span>
-                            </div>
-                            <p class="text-sm text-slate-600 mt-1">
-                                Update the company display names and logo filenames directly from the app.
-                            </p>
-                        </div>
-                        <button onclick="openCompanySettingsModal()" class="px-4 py-2 rounded-lg bg-slate-900 text-white font-bold hover:bg-slate-800">Open Settings</button>
-                    </div>
-                </div>` : ``;
 
+            const migrateBox = `
+<div class="bg-white p-4 rounded-xl border border-slate-200 mb-4">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-2">
+            <i data-lucide="database" class="w-5 h-5 text-slate-600"></i>
+            <div>
+                <div class="font-extrabold text-slate-800">Data Migration Tool</div>
+                <div class="text-xs text-slate-500">Admin-only: migrate legacy D2 Smart data into this unified database (companyKey = "smart").</div>
+            </div>
+        </div>
+        <button onclick="openMigrationModal()" class="px-4 py-2 rounded-lg bg-slate-900 text-white font-bold hover:bg-slate-800">Open Migration Tool</button>
+    </div>
+</div>`;
+const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
             const migrateBox = showMigration ? `
                 <div class="bg-white border border-amber-200 rounded-xl p-5 mb-4">
                     <div class="flex items-start justify-between gap-4">
@@ -1628,8 +1530,6 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                     </div>
                 </div>
 
-                ${migrateBox}${companySettingsBox}
-
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left">
@@ -1650,7 +1550,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                 </div>
             `;
 
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+            lucide.createIcons();
         }
 
         // --------------------------------
@@ -1666,7 +1566,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                     <p class="font-bold text-slate-800 mb-1">Contractor Portal</p>
                     <p class="text-sm">Log in with a contractor account to access this page.</p>
                 </div>`;
-                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+                lucide.createIcons();
                 return;
             }
 
@@ -1679,7 +1579,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                     <p class="font-bold text-slate-800 mb-1">Profile Not Linked</p>
                     <p class="text-sm">This account is not linked to a contractor profile yet. Please contact D2 Contractors.</p>
                 </div>`;
-                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+                lucide.createIcons();
                 return;
             }
 
@@ -1815,7 +1715,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                 </div>
 `;
 
-            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
+            lucide.createIcons();
         }
 
         // --------------------------------
@@ -1942,76 +1842,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
             }
         }
 
-        
-        function openCompanySettingsModal() {
-            try {
-                const isSuper = !!(currentUser && (currentUser.role === "super_admin" || currentUser.isSuperAdmin === true));
-                if (!isSuper) { showToast("Access denied", "Only super admins can change company branding.", "error"); return; }
-
-                const hvac = getCompanyMeta("hvac");
-                const smart = getCompanyMeta("smart");
-
-                const hvacLabel = document.getElementById("cs-hvac-label");
-                const hvacLogo = document.getElementById("cs-hvac-logo");
-                const smartLabel = document.getElementById("cs-smart-label");
-                const smartLogo = document.getElementById("cs-smart-logo");
-
-                if (hvacLabel) hvacLabel.value = hvac.label || "D2 HVAC Solutions";
-                if (hvacLogo) hvacLogo.value = hvac.logo || "logo-D2-HVAC-Solutions-preto.png";
-                if (smartLabel) smartLabel.value = smart.label || "D2 Smart Home";
-                if (smartLogo) smartLogo.value = smart.logo || "logo-D2-SmartHome-preto.png";
-
-                const modal = document.getElementById("company-settings-modal");
-                if (modal) {
-                    modal.classList.remove("hidden");
-                    modal.classList.add("flex");
-                }
-                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
-            } catch (e) {
-                console.error(e);
-                showToast("Error", "Could not open company settings.", "error");
-            }
-        }
-
-        function closeCompanySettingsModal() {
-            const modal = document.getElementById("company-settings-modal");
-            if (modal) {
-                modal.classList.add("hidden");
-                modal.classList.remove("flex");
-            }
-        }
-
-        async function saveCompanySettings() {
-            try {
-                const isSuper = !!(currentUser && (currentUser.role === "super_admin" || currentUser.isSuperAdmin === true));
-                if (!isSuper) { showToast("Access denied", "Only super admins can change company branding.", "error"); return; }
-
-                const hvacLabel = (document.getElementById("cs-hvac-label")?.value || "").trim();
-                const hvacLogo  = (document.getElementById("cs-hvac-logo")?.value || "").trim();
-                const smartLabel = (document.getElementById("cs-smart-label")?.value || "").trim();
-                const smartLogo  = (document.getElementById("cs-smart-logo")?.value || "").trim();
-
-                const updates = {
-                    hvac: { label: hvacLabel || "D2 HVAC Solutions", logo: hvacLogo || "logo-D2-HVAC-Solutions-preto.png" },
-                    smart:{ label: smartLabel || "D2 Smart Home",  logo: smartLogo || "logo-D2-SmartHome-preto.png" }
-                };
-
-                await db.collection("companies").doc("hvac").set(updates.hvac, { merge: true });
-                await db.collection("companies").doc("smart").set(updates.smart, { merge: true });
-
-                // refresh overrides and UI branding
-                await loadCompanyOverrides();
-                applyCompanyBranding();
-
-                closeCompanySettingsModal();
-                showToast("Saved", "Company branding updated.", "success");
-            } catch (e) {
-                console.error(e);
-                showToast("Error", e?.message || "Could not save company settings.", "error");
-            }
-        }
-
-function openLinkModal(link) {
+        function openLinkModal(link) {
             const modal = document.getElementById("link-modal");
             const input = document.getElementById("link-modal-input");
             if (input) input.value = link;
@@ -2021,7 +1852,7 @@ function openLinkModal(link) {
             }
             // Ensure branding is correct
             try { applyCompanyBranding(); } catch(e) {}
-            try { try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){} } catch(e) {}
+            try { lucide.createIcons(); } catch(e) {}
         }
 
         function closeLinkModal() {
@@ -2049,6 +1880,11 @@ function openLinkModal(link) {
                 }
                 showToast("Link copied");
             } catch(e) {
+                prompt("Copy this onboarding link:", link);
+            }
+        }
+            } catch (e) {
+                console.error(e);
                 prompt("Copy this onboarding link:", link);
             }
         }
