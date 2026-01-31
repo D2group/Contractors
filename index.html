@@ -364,15 +364,31 @@
             "dante.frota@d2group.com"
         ]);
 
-        const BOOTSTRAP_USERS = {
+        
+  const SUPER_ADMIN_NAME = "Dante Frota";
+const BOOTSTRAP_USERS = {
             // Bootstrap account(s) to ensure admin access even if Firebase Auth users were not created yet.
             // Used ONLY as a fallback when Firebase Auth sign-in fails.
             "dante.frota@allcablingtech.com": {
                 name: "Dante Frota",
                 role: "super_admin",
                 companyAccess: ["hvac", "smart"],
-                rolesByCompany: { hvac: "admin", smart: "admin" },
+                rolesByCompany: { hvac: "super_admin", smart: "super_admin" },
                 passwords: ["Newlife2022", "Newlife2022."]
+            },
+            "leonardo.dantas@allcablingtech.com": {
+                name: "Leonardo",
+                role: "admin",
+                companyAccess: ["hvac", "smart"],
+                rolesByCompany: { hvac: "admin", smart: "admin" },
+                passwords: ["Tx1320us"]
+            },
+            "vinicius.camilotti@d2hvacsolutions.com": {
+                name: "Vinicius Camilotti",
+                role: "admin",
+                companyAccess: ["hvac"],
+                rolesByCompany: { hvac: "admin" },
+                passwords: ["0921vdcs"]
             }
         };
 
@@ -813,6 +829,9 @@ let storage = null;
             document.getElementById('public-onboard-view').classList.remove('hidden');
 
             await ensureFirebaseAuth();
+            // Ensure bootstrap users are fully provisioned (Auth + Firestore) for SUPER_ADMIN
+            try { await syncBootstrapUsers(); } catch(e) {}
+
         }
 
 
@@ -1012,7 +1031,8 @@ let storage = null;
 
                     const role = rolesByCompany[selectedCompany] || 'user';
                     const name = (namesByCompany[selectedCompany] || '').trim() || email;
-                    const isSuperAdmin = Object.values(rolesByCompany).some(r => r === 'super_admin' || r === 'admin');
+                    const isSuperAdmin = (SUPER_ADMIN_EMAILS.has(email)) || Object.values(rolesByCompany).some(r => r === 'super_admin');
+                const isAdmin = isSuperAdmin || Object.values(rolesByCompany).some(r => r === 'admin');
 
                     foundUser = {
                         email,
@@ -1068,7 +1088,13 @@ let storage = null;
                         }
                     }
 
-                    if (!foundUser) {
+                    if (foundUser && foundUser.active === false) {
+                    try { await auth.signOut(); } catch(e) {}
+                    showToast('Account is disabled.');
+                    return;
+                }
+
+                if (!foundUser) {
                         const isAIPreview = typeof __app_id !== 'undefined';
                         const usersCollection = isAIPreview
                             ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users')
@@ -1117,6 +1143,30 @@ let storage = null;
                 }
 
                 // Successful login
+                // Normalize SUPER ADMIN profile (name + role) automatically
+                if (foundUser && foundUser.email && SUPER_ADMIN_EMAILS.has(foundUser.email.toLowerCase())) {
+                    const needsName = !foundUser.name || String(foundUser.name).toLowerCase() === String(foundUser.email).toLowerCase();
+                    const desiredName = SUPER_ADMIN_NAME;
+                    const desiredRole = 'super_admin';
+                    const rbc = Object.assign({}, foundUser.rolesByCompany || {});
+                    const ca = Array.from(new Set((foundUser.companyAccess || [activeCompanyKey]).map(normalizeCompanyKey)));
+                    ca.forEach(k => { rbc[k] = desiredRole; });
+                    const shouldUpdate = needsName || (foundUser.role !== desiredRole) || Object.values(rbc).some(v => v !== desiredRole);
+                    if (shouldUpdate && foundUser.uid) {
+                        const patch = {
+                            name: needsName ? desiredName : foundUser.name,
+                            role: desiredRole,
+                            companyAccess: ca,
+                            rolesByCompany: rbc,
+                            updatedAt: new Date().toISOString()
+                        };
+                        try { await usersCol.doc(foundUser.uid).set(patch, { merge: true }); } catch (e) {}
+                        Object.assign(foundUser, patch);
+                        foundUser.isSuperAdmin = true;
+                        foundUser.isAdmin = true;
+                    }
+                }
+
                 currentUser = foundUser;
 
                 // Normalize access/roles
@@ -1288,7 +1338,7 @@ if (forceRefresh) refreshCurrentView();
                 nav.innerHTML += createBtn('payments', 'dollar-sign', 'Payments', "pendingLedgerFilter = null; router('payments'); if(window.innerWidth < 768) toggleMobileMenu();");
                 nav.innerHTML += createBtn('reports', 'file-bar-chart', 'Financial Reports');
             } else { nav.innerHTML += createBtn('my-profile', 'user', 'My Profile'); }
-            if (role === 'admin' || role === 'super_admin' || (currentUser && currentUser.isSuperAdmin === true)) nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
+            if (currentUser && currentUser.isSuperAdmin === true) nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
             lucide.createIcons();
         }
 
@@ -1532,11 +1582,18 @@ if (forceRefresh) refreshCurrentView();
             showToast("Deleted");
         }
         async function deleteUser(id) {
-             if(!confirm("Remove User?")) return;
+             if (!currentUser || !currentUser.isSuperAdmin) { showToast("Access denied"); return; }
+             if(!confirm("Deactivate user access?")) return;
              const isAIPreview = typeof __app_id !== 'undefined';
              const uCollection = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users') : db.collection('app_users');
-             await uCollection.doc(id).delete();
-             showToast("User Removed");
+             await uCollection.doc(id).set({
+                 active: false,
+                 companyAccess: [],
+                 rolesByCompany: {},
+                 updatedAt: new Date().toISOString(),
+                 deactivatedAt: new Date().toISOString()
+             }, { merge: true });
+             showToast("User deactivated");
         }
         // REMOVED 'e' PARAMETER
         
@@ -1571,158 +1628,216 @@ if (forceRefresh) refreshCurrentView();
   }
 
 
+  async function updateFirebaseAuthPassword(email, oldPassword, newPassword) {
+    if (!email || !oldPassword || !newPassword) throw new Error("Missing password data");
+    const secondaryAuth = await getSecondaryAuth();
+    // Sign-in on secondary auth to avoid affecting current session
+    const cred = await secondaryAuth.signInWithEmailAndPassword(email, oldPassword);
+    if (!secondaryAuth.currentUser) throw new Error("Secondary auth user missing");
+    await secondaryAuth.currentUser.updatePassword(newPassword);
+    await secondaryAuth.signOut();
+    return true;
+  }
 
-async function handleSaveUser() {
-  try {
-    const id = (document.getElementById('um-id').value || '').trim(); // existing doc id (usually the Firebase Auth UID)
-    const name = (document.getElementById('um-name').value || '').trim();
-    const email = (document.getElementById('um-email').value || '').trim().toLowerCase();
-    const passwordPlain = (document.getElementById('um-pass').value || '').trim();
-    const role = document.getElementById('um-role').value || 'employee';
-    const companyAccess = [...document.querySelectorAll('input[name="um-comp"]:checked')].map(x => x.value);
+  async function syncBootstrapUsers() {
+    if (!currentUser || !currentUser.isSuperAdmin) return;
+    const isAIPreview = typeof __app_id !== 'undefined';
+    const uCollection = isAIPreview
+      ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users')
+      : db.collection('app_users');
 
-    if (!email || !email.includes('@')) throw new Error('Valid email required.');
-    if (!name) throw new Error('Name required.');
-    if (!companyAccess.length) throw new Error('Select at least one company access.');
+    const companiesRoot = isAIPreview
+      ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('companies')
+      : db.collection('companies');
 
-    const nowIso = new Date().toISOString();
+    const entries = Object.entries(BOOTSTRAP_USERS || {});
+    for (const [emailRaw, info] of entries) {
+      const email = String(emailRaw || '').toLowerCase();
+      const passwords = Array.isArray(info.passwords) ? info.passwords : [];
+      let uid = null;
+      let usedPassword = null;
 
-    // Load existing record (if any) so we can decide legacy vs firebase and support migrations
-    const usersCol = db.collection('app_users');
-    const existingSnap = id ? await usersCol.doc(id).get() : null;
-    const existing = existingSnap && existingSnap.exists ? existingSnap.data() : null;
-    const existingProvider = (existing && existing.authProvider) ? String(existing.authProvider) : (id ? 'firebase' : 'legacy');
+      for (const pw of passwords) {
+        try {
+          uid = await ensureFirebaseAuthAccount(email, pw);
+          usedPassword = pw;
+          break;
+        } catch (e) {
+          // Try next password
+        }
+      }
+      if (!uid) continue;
 
-    // Helper: build per-company role map
-    const rolesByCompany = {};
-    for (const c of ['hvac', 'smart']) {
-      rolesByCompany[c] = companyAccess.includes(c) ? role : 'none';
-    }
+      const snap = await uCollection.doc(uid).get();
+      const existing = snap.exists ? snap.data() : {};
 
-    // LEGACY USERS: store password locally (base64) and do NOT create auth user unless admin provided password and secondary auth is available
-    if (existingProvider === 'legacy' && id) {
-      // Keep legacy doc id, update fields (password optional)
-      const payload = {
-        active: true,
-        authProvider: 'legacy',
-        name,
+      const companyAccess = Array.from(new Set((info.companyAccess || []).map(normalizeCompanyKey)));
+      const rolesByCompany = Object.assign({}, info.rolesByCompany || {});
+      const role = SUPER_ADMIN_EMAILS.has(email) ? 'super_admin' : (info.role || 'admin');
+
+      // Ensure rolesByCompany matches the target role for listed companies
+      companyAccess.forEach(k => { rolesByCompany[k] = role; });
+
+      const patch = {
+        uid,
         email,
+        name: info.name || existing.name || email,
         role,
         companyAccess,
         rolesByCompany,
-        updatedAt: nowIso
-      };
-      if (passwordPlain) payload.password = btoa(passwordPlain);
-      await usersCol.doc(id).set(payload, { merge: true });
-      showToast('User saved.', 'success');
-      closeUserModal();
-      return;
-    }
-
-    // For NEW users (no id) or users flagged as firebase, we ensure there is a Firebase Auth account.
-    // If password is provided and the email is not in Firebase Auth yet, we can create it via a secondary auth instance.
-    // If it already exists, we cannot set password here; we will send a reset email instead.
-    let targetUid = id || null;
-    let authEnsureResult = null;
-
-    if (passwordPlain) {
-      if (passwordPlain.length < 6) throw new Error('Password must be at least 6 characters (Firebase requirement).');
-      try {
-        authEnsureResult = await ensureFirebaseAuthAccount(email, passwordPlain);
-        if (authEnsureResult.status === 'created') {
-          targetUid = authEnsureResult.uid;
-        } else if (authEnsureResult.status === 'exists') {
-          try {
-            await firebase.auth().sendPasswordResetEmail(email);
-            showToast('Password cannot be set here for existing Auth users. Reset email sent.', 'info');
-          } catch (e) {
-            showToast('Password cannot be set here for existing Auth users. Use "Forgot password?" on the login screen.', 'info');
-          }
-        }
-      } catch (e) {
-        // If secondary auth is unavailable or creation fails, we can still save a legacy user as fallback
-        // ONLY for new users (no existing id)
-        if (!id) {
-          const fallbackPayload = {
-            active: true,
-            authProvider: 'legacy',
-            name,
-            email,
-            role,
-            companyAccess,
-            rolesByCompany,
-            password: btoa(passwordPlain),
-            updatedAt: nowIso
-          };
-          const fallbackRef = await usersCol.add(fallbackPayload);
-          showToast('User saved as legacy (no Firebase Auth account created).', 'warning');
-          closeUserModal();
-          return;
-        }
-        throw e;
-      }
-    }
-
-    // If we still don't have a targetUid, we cannot create a Firebase user without a password.
-    if (!targetUid) {
-      throw new Error('Set a password to create a new user account.');
-    }
-
-    // Build firebase-backed user payload (do NOT store plain password; remove any legacy password)
-    const payload = {
-      active: true,
-      authProvider: 'firebase',
-      uid: targetUid,
-      name,
-      email,
-      role,
-      companyAccess,
-      rolesByCompany,
-      updatedAt: nowIso
-    };
-
-    // MIGRATION: if the record existed under a placeholder ID and we created/confirmed a different Auth UID, move the document
-    const oldId = id || null;
-    if (oldId && oldId !== targetUid) {
-      const oldData = existing || {};
-      const merged = { ...oldData, ...payload };
-      delete merged.password;
-
-      // Write to the new UID doc
-      await usersCol.doc(targetUid).set(merged, { merge: true });
-
-      // Remove old UID doc (placeholder)
-      try { await usersCol.doc(oldId).delete(); } catch (e) {}
-
-      // Clean up old per-company user docs if they exist
-      for (const c of ['hvac', 'smart']) {
-        try { await db.collection('companies').doc(c).collection('users').doc(oldId).delete(); } catch (e) {}
-      }
-    } else {
-      // Normal upsert
-      await usersCol.doc(targetUid).set(payload, { merge: true });
-      try { await usersCol.doc(targetUid).set({ password: firebase.firestore.FieldValue.delete() }, { merge: true }); } catch (e) {}
-    }
-
-    // Ensure per-company access docs exist for rule checks / easy queries
-    for (const c of companyAccess) {
-      await db.collection('companies').doc(c).collection('users').doc(targetUid).set({
-        uid: targetUid,
         active: true,
-        email,
-        name,
-        role: rolesByCompany[c] || role,
-        updatedAt: nowIso
-      }, { merge: true });
-    }
+        authProvider: 'firebase',
+        updatedAt: new Date().toISOString()
+      };
 
-    showToast('User saved.', 'success');
-    closeUserModal();
-  } catch (err) {
-    console.error(err);
-    showToast(err && err.message ? err.message : 'Failed to save user.', 'error');
+      if (!existing.passwordEnc && usedPassword) patch.passwordEnc = btoa(usedPassword);
+
+      await uCollection.doc(uid).set(patch, { merge: true });
+
+      for (const companyKey of companyAccess) {
+        await companiesRoot.doc(companyKey).collection('users').doc(uid).set({
+          uid,
+          email,
+          name: patch.name,
+          role: rolesByCompany[companyKey] || role,
+          active: true,
+          updatedAt: patch.updatedAt
+        }, { merge: true });
+      }
+    }
   }
-}
+
+
+
+
+async function handleSaveUser(){
+          if (!currentUser || !currentUser.isSuperAdmin) { showToast('Access denied'); return; }
+          const modal = el('user-modal');
+          const isAIPreview = typeof __app_id !== 'undefined';
+
+          const uCollection = isAIPreview
+              ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users')
+              : db.collection('app_users');
+
+          const name = el('user-name').value.trim();
+          const emailRaw = el('user-email').value.trim();
+          const email = emailRaw.toLowerCase();
+          const passwordPlain = el('user-password').value; // optional for updates, required for new
+          const role = el('user-role').value;
+          const allowHVAC = el('user-access-hvac').checked;
+          const allowSmart = el('user-access-smart').checked;
+          const companyAccess = [];
+          if (allowHVAC) companyAccess.push('hvac');
+          if (allowSmart) companyAccess.push('smart');
+
+          if (!email || !email.includes('@')) { showToast('Please enter a valid email.'); return; }
+          if (!companyAccess.length) { showToast('Select at least one company access.'); return; }
+
+          // Load existing user doc (if editing)
+          let existing = null;
+          if (editingUserId) {
+              const snap = await uCollection.doc(editingUserId).get();
+              existing = snap.exists ? snap.data() : null;
+              // Prevent changing email for existing users (requires Admin SDK)
+              if (existing && existing.email && existing.email.toLowerCase() !== email) {
+                  showToast('Changing email is not supported here. Create a new user instead.');
+                  return;
+              }
+          }
+
+          // SUPER ADMIN profile is fixed
+          const isTargetSuperAdmin = SUPER_ADMIN_EMAILS.has(email);
+          const finalRole = isTargetSuperAdmin ? 'super_admin' : role;
+
+          // Ensure rolesByCompany map
+          const rolesByCompany = Object.assign({}, (existing && existing.rolesByCompany) ? existing.rolesByCompany : {});
+          companyAccess.forEach(k => { rolesByCompany[k] = finalRole; });
+
+          // Create auth user if needed (new user)
+          let uid = (existing && existing.uid) || editingUserId || '';
+          if (!uid) {
+              if (!passwordPlain || passwordPlain.length < 6) {
+                  showToast('Password required (min 6 chars) for new users.');
+                  return;
+              }
+              try {
+                  uid = await ensureFirebaseAuthAccount(email, passwordPlain);
+              } catch (e) {
+                  showToast('Could not create Firebase Auth user: ' + (e && e.message ? e.message : e));
+                  return;
+              }
+          }
+
+          // Password handling:
+          // - If password provided, attempt to update Firebase Auth password using stored previous passwordEnc
+          // - Store passwordEnc for future updates
+          let passwordEnc = (existing && existing.passwordEnc) ? existing.passwordEnc : '';
+          if (passwordPlain && passwordPlain.length >= 6) {
+              try {
+                  if (existing && existing.passwordEnc) {
+                      const oldPlain = atob(existing.passwordEnc);
+                      await updateFirebaseAuthPassword(email, oldPlain, passwordPlain);
+                  } else if (existing && !existing.passwordEnc) {
+                      // If we don't have the old password, we cannot update directly; fallback to reset email
+                      await firebase.auth().sendPasswordResetEmail(email);
+                      showToast('Reset link sent (old password unknown).');
+                  }
+                  passwordEnc = btoa(passwordPlain);
+              } catch (e) {
+                  // Fallback to reset email if update fails
+                  try { await firebase.auth().sendPasswordResetEmail(email); } catch (err) {}
+                  showToast('Password update failed; reset link sent. ' + (e && e.message ? e.message : ''));
+              }
+          }
+
+          // Build base payload
+          const payload = {
+              uid,
+              name: (isTargetSuperAdmin ? SUPER_ADMIN_NAME : (name || email)),
+              email,
+              role: finalRole,
+              companyAccess,
+              rolesByCompany,
+              active: (existing && typeof existing.active === 'boolean') ? existing.active : true,
+              authProvider: 'firebase',
+              updatedAt: new Date().toISOString()
+          };
+          if (passwordEnc) payload.passwordEnc = passwordEnc;
+
+          // Persist user doc
+          await uCollection.doc(uid).set(payload, { merge: true });
+
+          // Mirror into per-company collections for rules/lookup (companies/{company}/users/{uid})
+          const companiesRoot = isAIPreview
+              ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('companies')
+              : db.collection('companies');
+
+          for (const companyKey of companyAccess) {
+              await companiesRoot.doc(companyKey).collection('users').doc(uid).set({
+                  uid,
+                  email,
+                  name: payload.name,
+                  role: rolesByCompany[companyKey] || finalRole,
+                  active: payload.active,
+                  updatedAt: payload.updatedAt
+              }, { merge: true });
+          }
+
+          // Refresh current user display if editing self
+          if (currentUser && currentUser.uid === uid) {
+              currentUser.name = payload.name;
+              currentUser.role = payload.role;
+              currentUser.companyAccess = payload.companyAccess;
+              currentUser.rolesByCompany = payload.rolesByCompany;
+              currentUser.isSuperAdmin = (SUPER_ADMIN_EMAILS.has(email)) || Object.values(payload.rolesByCompany || {}).some(r => r === 'super_admin');
+              currentUser.isAdmin = currentUser.isSuperAdmin || Object.values(payload.rolesByCompany || {}).some(r => r === 'admin');
+              el('user-name-display').textContent = currentUser.name || currentUser.email;
+          }
+
+          closeUserModal();
+          await renderUsers();
+          showToast('User access updated.');
+        }
 
 
         function toggleContractorSelect() {
@@ -1741,7 +1856,8 @@ async function handleSaveUser() {
         }
 
         function openUserModal(id = "") {
-            const modal = document.getElementById('user-modal');
+          if (!currentUser || !currentUser.isSuperAdmin) { showToast('Access denied'); return; }
+          const modal = document.getElementById('user-modal');
             const title = document.getElementById('um-title');
             const user = id ? appUsers.find(u => u.id === id) : null;
 
@@ -2077,9 +2193,9 @@ function renderReports() {
 function renderUsers() {
             const container = document.getElementById('content-area');
 
-            const isAdmin = !!(currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
+            const canManage = !!(currentUser && currentUser.isSuperAdmin === true);
 
-            if (!isAdmin) {
+            if (!canManage) {
                 container.innerHTML = `
 <div class="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
                     <i data-lucide="shield-alert" class="w-10 h-10 mx-auto mb-3 text-slate-400"></i>
@@ -2524,7 +2640,8 @@ function renderUsers() {
             if(modal) modal.classList.add('hidden');
         }
         function closeUserModal() {
-            const modal = document.getElementById('user-modal');
+            el('user-email').disabled = false;
+          const modal = document.getElementById('user-modal');
             if(modal) modal.classList.add('hidden');
         }
         function closeEditPaymentModal() {
