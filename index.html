@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- BUILD: 2026-01-30-LOGINFIX-1 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>D2 Contractors - Contractor Manager</title>
@@ -18,6 +19,11 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-storage-compat.js"></script>
 
     <style>
+
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear { display: none; }
+        input[type="password"]::-webkit-credentials-auto-fill-button,
+        input[type="password"]::-webkit-contacts-auto-fill-button { visibility: hidden; display: none !important; }
 
         /* Print header base (hidden on screen) */
         .print-header { display: none; }
@@ -229,8 +235,8 @@
                 <div class="relative">
                     <input type="password" id="password" autocapitalize="none" class="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Password" required>
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="lock" class="w-5 h-5"></i></div>
-                    <button type="button" onclick="toggleLoginPassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-blue-700 transition-colors z-10 cursor-pointer" style="min-width: 64px; justify-content: center;">
-                        <span id="pwToggleText" class="text-xs font-semibold tracking-wide">SHOW</span>
+                    <button type="button" onclick="toggleLoginPassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center justify-center text-slate-600 hover:text-blue-700 transition-colors z-10 cursor-pointer">
+                        <span id="pwToggleText" class="text-[11px] font-extrabold tracking-wider">SHOW</span>
                     </button>
                 </div>
                 
@@ -649,7 +655,7 @@ let storage = null;
 
         
         window.onload = async function() {
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
             await loadCompanyOverrides();
             if (urlParams.get('mode') === 'onboard') {
                 isPublicMode = true;
@@ -815,7 +821,7 @@ let storage = null;
             try {
                 await ensureFirebaseAuth();
 
-                const selectedCompany = normalizeCompanyKey(activeCompanyKey || getSavedCompanyKey());
+                let selectedCompany = normalizeCompanyKey(activeCompanyKey || getSavedCompanyKey());
                 let foundUser = null;
 
                 // 1) PRIMARY: Firebase Email/Password auth (supports password reset)
@@ -984,11 +990,13 @@ let storage = null;
                 grantAccess(true);
 
             } catch (err) {
+                const code = (err && err.code) ? err.code : '';
+
                 console.error(err);
-                errorDiv.textContent = err.message || "Login failed.";
+                errorDiv.textContent = String(err.message || "Login failed.") + (code ? ' ('+code+')' : '');
                 errorDiv.classList.remove('hidden');
             } finally {
-                btn.textContent = "Log In"; btn.disabled = false;
+                btn.textContent = "Sign In"; btn.disabled = false;
             }
         }
 
@@ -1125,7 +1133,7 @@ if (forceRefresh) refreshCurrentView();
                 nav.innerHTML += createBtn('reports', 'file-bar-chart', 'Financial Reports');
             } else { nav.innerHTML += createBtn('my-profile', 'user', 'My Profile'); }
             if (role === 'admin' || role === 'super_admin' || (currentUser && currentUser.isSuperAdmin === true)) nav.innerHTML += createBtn('users', 'user-plus', 'Users & Access');
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
         }
 
         function router(view) {
@@ -1147,7 +1155,7 @@ if (forceRefresh) refreshCurrentView();
             else if(view === 'reports') renderReports();
             else if(view === 'users') renderUsers();
             else if(view === 'my-profile') renderContractorPortal();
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
         }
 
         // --- RENDERERS ---
@@ -1164,7 +1172,7 @@ if (forceRefresh) refreshCurrentView();
                 return `<div onclick="goToPaymentLedger('${p.contractorId}')" class="flex justify-between items-center p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 transition-all cursor-pointer"><div class="flex items-center gap-3"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs border border-slate-200">${c.businessName.substring(0,2).toUpperCase()}</div><div><p class="font-bold text-slate-800 text-xs md:text-sm">${c.businessName}</p><p class="text-[10px] md:text-xs text-slate-500">${p.date}</p></div></div><span class="font-bold text-slate-700 text-sm md:text-base">$${parseFloat(p.amount).toLocaleString()}</span></div>`; 
             }).join('');
             container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8"><div onclick="router('contractors')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-blue-100 text-blue-600 rounded-full"><i data-lucide="users"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">Contractors</p><h3 class="text-3xl font-bold text-slate-800">${totalC}</h3></div></div><div onclick="router('payments'); pendingLedgerFilter=null;" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-green-100 text-green-600 rounded-full"><i data-lucide="dollar-sign"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">YTD Payout</p><h3 class="text-3xl font-bold text-slate-800">$${ytd.toLocaleString()}</h3></div></div><div onclick="router('reports')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex items-center gap-4 group"><div class="p-4 bg-purple-100 text-purple-600 rounded-full"><i data-lucide="file-check"></i></div><div><p class="text-sm text-slate-500 font-bold uppercase">Files on Record</p><h3 class="text-3xl font-bold text-slate-800">${w9Count} / ${totalC}</h3></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200"><h3 class="font-bold text-lg mb-4 text-slate-800">Recent Transactions</h3><div class="space-y-3">${recentHtml || '<p class="text-slate-400 text-center py-4">No payments yet.</p>'}</div></div><div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200"><div class="flex items-center gap-3 mb-4"><div class="p-2 bg-orange-100 text-orange-600 rounded-lg"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div><h3 class="font-bold text-lg text-slate-800">Pending Compliance</h3></div><div class="space-y-4"><div class="flex justify-between items-center p-3 bg-slate-50 rounded border border-slate-100"><span class="text-sm font-bold text-slate-600">Missing W9 Forms</span><span class="bg-red-100 text-red-600 px-3 py-1 rounded-full font-bold text-xs">${missingW9} Contractors</span></div><button onclick="router('reports')" class="w-full text-center text-blue-600 text-sm font-bold hover:underline">View Compliance Report</button></div></div></div>`;
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
         }
 
         window.goToPaymentLedger = (contractorId) => { pendingLedgerFilter = contractorId; router('payments'); };
@@ -1179,7 +1187,7 @@ if (forceRefresh) refreshCurrentView();
             filterContractors(); 
             // Drag Drop init
             setupDragAndDrop('nc-drop-zone', 'nc-file', 'nc-file-name');
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
         }
 
         function filterContractors() {
@@ -1189,7 +1197,7 @@ if (forceRefresh) refreshCurrentView();
             const filtered = contractors.filter(c => (c.businessName || '').toLowerCase().includes(query) || (c.ein || '').includes(query));
             list.innerHTML = filtered.map(c => `<div onclick='openEditModal("${c.id}")' class="cursor-pointer bg-white p-5 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all flex flex-col justify-between group relative"><div class="absolute top-4 right-4 text-slate-300 group-hover:text-blue-500 transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i></div><div><div class="flex items-center gap-0 mb-2 pr-6"><h3 class="font-bold text-lg text-slate-800">${c.businessName}</h3>${(c.w9OnFile || (c.files && c.files.length > 0)) ? '<i data-lucide="folder-check" class="w-4 h-4 text-green-500"></i>' : ''}</div><div class="space-y-1 text-sm text-slate-500"><p><span class="font-mono bg-slate-100 px-1 rounded text-xs text-slate-600">${c.ein || '-'}</span></p><p>${c.contactName || '-'}</p></div></div><div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400"><span class="truncate max-w-[150px]">${c.address || '-'}</span><span class="text-blue-600 font-semibold group-hover:underline">Manage Files</span></div></div>`).join('');
             if(filtered.length === 0) list.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400 bg-slate-50 rounded border border-dashed border-slate-300">No contractors found.</div>`;
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
         }
 
         // --- EDIT MODAL LOGIC (MULTI-FILE & RENAME) ---
@@ -1217,7 +1225,7 @@ if (forceRefresh) refreshCurrentView();
                 listContainer.innerHTML = '<p class="text-sm text-slate-400 italic text-center py-2">No files attached yet.</p>';
             } else {
                 listContainer.innerHTML = currentEditingFiles.map((f, i) => `<div class="flex items-center justify-between bg-white p-2 rounded border border-slate-100"><div class="flex items-center gap-0 overflow-hidden flex-1"><i data-lucide="file-text" class="w-4 h-4 text-blue-500 shrink-0"></i><input type="text" value="${f.name || 'Document'}" onchange="updateFileName(${i}, this.value)" class="text-xs font-bold text-slate-700 border-b border-transparent hover:border-slate-300 focus:border-blue-500 bg-transparent outline-none w-full truncate"></div><div class="flex items-center gap-0 shrink-0"><a href="${f.url}" target="_blank" class="text-blue-600 hover:bg-blue-50 p-1 rounded"><i data-lucide="eye" class="w-4 h-4"></i></a><button type="button" onclick="deleteFileFromList(${i})" class="text-red-500 hover:bg-red-50 p-1 rounded"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>`).join('');
-                lucide.createIcons();
+                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
             }
         }
         window.updateFileName = function(index, newName) { if(currentEditingFiles[index]) currentEditingFiles[index].name = newName; }
@@ -1511,7 +1519,7 @@ if (forceRefresh) refreshCurrentView();
 
             if (title) title.textContent = id ? "Edit User" : "Add User";
             if (modal) modal.classList.remove('hidden');
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
         }
 
         function renderUsers() {
@@ -1526,7 +1534,7 @@ if (forceRefresh) refreshCurrentView();
                     <p class="font-bold text-slate-800 mb-1">Access Restricted</p>
                     <p class="text-sm">Only admins can manage users.</p>
                 </div>`;
-                lucide.createIcons();
+                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
                 return;
             }
 const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true));
@@ -1642,7 +1650,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                 </div>
             `;
 
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
         }
 
         // --------------------------------
@@ -1658,7 +1666,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                     <p class="font-bold text-slate-800 mb-1">Contractor Portal</p>
                     <p class="text-sm">Log in with a contractor account to access this page.</p>
                 </div>`;
-                lucide.createIcons();
+                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
                 return;
             }
 
@@ -1671,7 +1679,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                     <p class="font-bold text-slate-800 mb-1">Profile Not Linked</p>
                     <p class="text-sm">This account is not linked to a contractor profile yet. Please contact D2 Contractors.</p>
                 </div>`;
-                lucide.createIcons();
+                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
                 return;
             }
 
@@ -1807,7 +1815,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                 </div>
 `;
 
-            lucide.createIcons();
+            try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
         }
 
         // --------------------------------
@@ -1958,7 +1966,7 @@ const showMigration = !!(currentUser && (currentUser.role === 'super_admin' || c
                     modal.classList.remove("hidden");
                     modal.classList.add("flex");
                 }
-                lucide.createIcons();
+                try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){}
             } catch (e) {
                 console.error(e);
                 showToast("Error", "Could not open company settings.", "error");
@@ -2013,7 +2021,7 @@ function openLinkModal(link) {
             }
             // Ensure branding is correct
             try { applyCompanyBranding(); } catch(e) {}
-            try { lucide.createIcons(); } catch(e) {}
+            try { try{ if(window.lucide && lucide.createIcons) lucide.createIcons(); }catch(e){} } catch(e) {}
         }
 
         function closeLinkModal() {
