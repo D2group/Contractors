@@ -1274,26 +1274,46 @@ function grantAccess(isNewLogin) {
 
             // Users (admin-only)
             if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || currentUser.isSuperAdmin === true)) {
-                const unsubUsers = root.collection('app_users').onSnapshot(s => {
-                    const all = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                const usersRef = root.collection('app_users');
+
+                // Firestore rules frequently require scoped queries. We load users by workspace access.
+                // Super Admin sees users from all workspaces (hvac + smart) and can grant/revoke access.
+                const usersBuckets = {};
+                const rebuildUsersFromBuckets = () => {
+                    const merged = new Map();
+                    Object.values(usersBuckets).forEach(arr => {
+                        (arr || []).forEach(u => merged.set(u.id, u));
+                    });
+                    const all = Array.from(merged.values());
 
                     appUsers = all.map(u => {
                         const ca = Array.isArray(u.companyAccess)
                             ? u.companyAccess.map(normalizeCompanyKey)
                             : (u.companyKey ? [normalizeCompanyKey(u.companyKey)] : []);
                         return { ...u, companyAccess: ca, companyKey: normalizeCompanyKey(u.companyKey || (ca[0] || 'hvac')) };
-                    });
-
-                    // Super-admin/admin user management must show ALL users (even if they currently have no access
-                    // to the active workspace) so you can grant/revoke access.
-                    // Filtering happens only in the UI when desired.
-                    // (Do not filter here.)
-                    appUsers = appUsers.sort((a,b)=>String(a.email||'').localeCompare(String(b.email||'')));
-
+                    }).sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
 
                     if (window.currentView === 'users') renderUsers();
+                };
+
+                const attachUsersSnapshot = (bucketKey, queryRef) => queryRef.onSnapshot(s => {
+                    usersBuckets[bucketKey] = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    rebuildUsersFromBuckets();
+                }, err => {
+                    console.error('Users snapshot error:', err);
+                    usersBuckets[bucketKey] = [];
+                    rebuildUsersFromBuckets();
                 });
-                _unsubs.push(unsubUsers);
+
+                if (isSuperAdmin()) {
+                    const unsubUsersHVAC = attachUsersSnapshot('hvac', usersRef.where('companyAccess', 'array-contains', 'hvac'));
+                    const unsubUsersSMART = attachUsersSnapshot('smart', usersRef.where('companyAccess', 'array-contains', 'smart'));
+                    _unsubs.push(unsubUsersHVAC, unsubUsersSMART);
+                } else {
+                    const wk = normalizeCompanyKey(activeCompanyKey || currentUser.companyKey || 'hvac');
+                    const unsubUsers = attachUsersSnapshot(wk, usersRef.where('companyAccess', 'array-contains', wk));
+                    _unsubs.push(unsubUsers);
+                }
             }
 if (forceRefresh) refreshCurrentView();
         }
