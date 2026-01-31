@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- BUILD: 2026-01-31-RESTORE+LOGIN+SHOWFIX -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>D2 Contractors - Contractor Manager</title>
@@ -728,7 +729,7 @@ else { pwdInput.type = "password"; showIcon.classList.remove('hidden'); hideIcon
             try {
                 await ensureFirebaseAuth();
 
-                const selectedCompany = normalizeCompanyKey(activeCompanyKey || getSavedCompanyKey());
+                let selectedCompany = normalizeCompanyKey(activeCompanyKey || getSavedCompanyKey());
                 let foundUser = null;
 
                 // 1) PRIMARY: Firebase Email/Password auth (supports password reset)
