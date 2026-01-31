@@ -214,11 +214,8 @@
                     </div>
                     <div class="text-[11px] text-slate-500 mt-1">Controls which workspace(s) this user can access.</div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Firebase UID (optional)</label>
-                    <input type="text" id="um-uid" placeholder="Paste UID to manage Firebase-auth users" class="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                    <div class="text-[11px] text-slate-500 mt-1">If provided, access is granted in <code>companies/{company}/users/{uid}</code>.</div>
-                </div>
+                
+
                 <div id="um-contractor-div" class="hidden"><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Link to Contractor Profile</label><select id="um-contractor-link" class="w-full p-2 bg-white border border-slate-300 rounded"><option value="">Select Contractor...</option></select></div>
                 <div class="flex justify-end gap-0 mt-4"><button type="button" onclick="closeUserModal()" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button type="button" onclick="handleSaveUser()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700">Save</button></div>
             </form>
@@ -359,6 +356,45 @@
         firebase.initializeApp(activeConfig);
 
         const db = firebase.firestore();
+
+        const COMPANY_KEYS = ["hvac", "smart"];
+        const SUPER_ADMIN_EMAILS = new Set([
+            "dante.frota@allcablingtech.com",
+            "dante.frota@d2smarthome.com",
+            "dante.frota@d2group.com"
+        ]);
+
+        function isSuperAdminEmail(emailLower) {
+            return SUPER_ADMIN_EMAILS.has((emailLower || "").toLowerCase());
+        }
+
+        async function syncCompanyMembership(uid, profile) {
+            try {
+                const access = Array.isArray(profile?.companyAccess) ? profile.companyAccess : (profile?.companyKey ? [profile.companyKey] : []);
+                const rolesByCompany = (profile?.rolesByCompany && typeof profile.rolesByCompany === "object") ? profile.rolesByCompany : {};
+                const now = new Date().toISOString();
+                const batch = db.batch();
+
+                COMPANY_KEYS.forEach((ck) => {
+                    const ref = db.collection("companies").doc(ck).collection("users").doc(uid);
+                    if (access.includes(ck)) {
+                        batch.set(ref, {
+                            active: true,
+                            email: profile?.email || "",
+                            name: profile?.name || profile?.email || "",
+                            role: rolesByCompany[ck] || profile?.role || "employee",
+                            updatedAt: now
+                        }, { merge: true });
+                    } else {
+                        batch.set(ref, { active: false, updatedAt: now }, { merge: true });
+                    }
+                });
+
+                await batch.commit();
+            } catch (e) {
+                console.warn("syncCompanyMembership failed:", e);
+            }
+        }
         const auth = firebase.auth();
 
 // ===== Legacy Source (D2 Smart) - Migration Only =====
@@ -830,11 +866,47 @@ let storage = null;
                         emailsByCompany.smart = meSmart.email || '';
                     }
 
-                    if (access.length === 0) {
-                        throw new Error("Access not granted yet. Ask an admin to enable your account for HVAC and/or Smart.");
+                    // Auto-fallback: if company membership docs are missing, try app_users (by uid) or app_user_invites (by email).
+                    const emailLower = (user.email || "").toLowerCase();
+                    if (isSuperAdminEmail(emailLower)) {
+                        access.splice(0, access.length, "hvac", "smart");
+                        rolesByCompany["hvac"] = "admin";
+                        rolesByCompany["smart"] = "admin";
                     }
 
-                    // If user selected a company they don't have access to, auto-select the first allowed company
+                    if (access.length === 0) {
+                        try {
+                            const profSnap = await db.collection('app_users').doc(uid).get();
+                            if (profSnap.exists) {
+                                const prof = profSnap.data() || {};
+                                const ca = Array.isArray(prof.companyAccess) ? prof.companyAccess : (prof.companyKey ? [prof.companyKey] : []);
+                                const rb = (prof.rolesByCompany && typeof prof.rolesByCompany === 'object') ? prof.rolesByCompany : {};
+                                ca.forEach(k => { if (!access.includes(k)) access.push(k); });
+                                access.forEach(k => { if (!rolesByCompany[k]) rolesByCompany[k] = (rb[k] || prof.role || 'employee'); });
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
+
+                    if (access.length === 0) {
+                        try {
+                            const invSnap = await db.collection('app_user_invites').doc(emailLower).get();
+                            if (invSnap.exists) {
+                                const inv = invSnap.data() || {};
+                                const ca = Array.isArray(inv.companyAccess) ? inv.companyAccess : (inv.companyKey ? [inv.companyKey] : []);
+                                const rb = (inv.rolesByCompany && typeof inv.rolesByCompany === 'object') ? inv.rolesByCompany : {};
+                                ca.forEach(k => { if (!access.includes(k)) access.push(k); });
+                                access.forEach(k => { if (!rolesByCompany[k]) rolesByCompany[k] = (rb[k] || inv.role || 'employee'); });
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
+
+                    if (access.length === 0) {
+                        // Auto-provision (first login): grant access to the selected workspace as Employee.
+                        access.push(selectedCompanyKey);
+                        rolesByCompany[selectedCompanyKey] = rolesByCompany[selectedCompanyKey] || 'employee';
+                    }
+
+// If user selected a company they don't have access to, auto-select the first allowed company
                     if (!access.includes(selectedCompany)) {
                         selectedCompany = access[0];
                         selectCompany(selectedCompany, true);
@@ -869,7 +941,9 @@ let storage = null;
                             rolesByCompany,
                             updatedAt: new Date().toISOString()
                         }, { merge: true });
-                    } catch(e) { console.warn("Index upsert failed:", e); }
+                    
+                        await syncCompanyMembership(uid, foundUser);
+} catch(e) { console.warn("Index upsert failed:", e); }
                 } catch (firebaseLoginErr) {
                     // If Firebase login failed for reasons OTHER than invalid credentials,
                     // surface the real error (e.g., unauthorized-domain, too-many-requests).
@@ -921,7 +995,9 @@ let storage = null;
                         foundUser.companyAccess = ca;
 
                         if (ca.length === 0) {
-                            throw new Error("Access not granted yet. Ask an admin to enable your account.");
+                            // Auto-provision (first login): grant access to the selected workspace as Employee.
+                            ca.push(selectedCompany);
+                            foundUser.companyAccess = ca;
                         }
                         if (!ca.includes(selectedCompany)) {
                             selectedCompany = ca[0];
@@ -978,7 +1054,7 @@ function grantAccess(isNewLogin) {
             document.getElementById('sidebar').classList.remove('hidden');
             document.getElementById('main-content').classList.remove('hidden');
             document.getElementById('user-name-display').textContent = currentUser.name || currentUser.email;
-            document.getElementById('user-role-display').textContent = (currentUser.role || 'employee').toUpperCase();
+            document.getElementById('user-role-display').textContent = (currentUser.isSuperAdmin ? 'SUPER ADMIN' : (currentUser.role || 'employee').toUpperCase());
             document.getElementById('user-initials-display').textContent = (currentUser.name || "User").split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
             initApp(isNewLogin);
         }
@@ -1056,7 +1132,14 @@ function grantAccess(isNewLogin) {
                             ? u.companyAccess.map(normalizeCompanyKey)
                             : (u.companyKey ? [normalizeCompanyKey(u.companyKey)] : []);
                         return { ...u, companyAccess: ca, companyKey: normalizeCompanyKey(u.companyKey || (ca[0] || 'hvac')) };
-                    }).filter(u => (u.companyAccess || []).includes(activeCompanyKey));
+                    });
+
+                    // Super-admin/admin user management must show ALL users (even if they currently have no access
+                    // to the active workspace) so you can grant/revoke access.
+                    // Filtering happens only in the UI when desired.
+                    // (Do not filter here.)
+                    appUsers = appUsers.sort((a,b)=>String(a.email||'').localeCompare(String(b.email||'')));
+
 
                     if (window.currentView === 'users') renderUsers();
                 });
@@ -1358,6 +1441,7 @@ if (forceRefresh) refreshCurrentView();
         // REMOVED 'e' PARAMETER
         async function handleSaveUser() {
             const id = document.getElementById('um-id').value;
+            const uid = (id || "").trim();
             const name = (document.getElementById('um-name').value || "").trim();
             const email = (document.getElementById('um-email').value || "").trim().toLowerCase();
             const pass = document.getElementById('um-pass').value || "";
@@ -1366,9 +1450,6 @@ if (forceRefresh) refreshCurrentView();
             const access = [];
             if (document.getElementById('um-access-hvac').checked) access.push('hvac');
             if (document.getElementById('um-access-smart').checked) access.push('smart');
-
-            const uidInput = (document.getElementById('um-uid').value || "").trim();
-
             if (!email) { showToast("Email is required.", true); return; }
             if (access.length === 0) { showToast("Select at least one company workspace.", true); return; }
 
@@ -1388,17 +1469,17 @@ if (forceRefresh) refreshCurrentView();
             const batch = db.batch();
 
             // If UID provided, we treat this as a Firebase-auth user and manage company membership docs
-            if (uidInput) {
-                payload.uid = uidInput;
+            if (uid) {
+                payload.uid = uid;
                 payload.authProvider = 'firebase';
 
                 // Index doc id = uid for consistent management
-                const userDoc = db.collection('app_users').doc(uidInput);
+                const userDoc = db.collection('app_users').doc(uid);
                 batch.set(userDoc, payload, { merge: true });
 
                 // Write/disable company membership docs
                 for (const ck of ['hvac', 'smart']) {
-                    const ref = db.collection('companies').doc(ck).collection('users').doc(uidInput);
+                    const ref = db.collection('companies').doc(ck).collection('users').doc(uid);
                     if (access.includes(ck)) {
                         batch.set(ref, {
                             active: true,
@@ -1469,7 +1550,7 @@ if (forceRefresh) refreshCurrentView();
             document.getElementById('um-email').value = user?.email || "";
 
             // Password is only stored for legacy users (not recommended). For Firebase users, leave blank.
-            document.getElementById('um-pass').value = (user?.authProvider === 'legacy' && user?.password) ? atob(user.password) : "";
+            document.getElementById('um-pass').value = "";
             document.getElementById('um-role').value = user?.role || "employee";
 
             const access = Array.isArray(user?.companyAccess)
@@ -1478,8 +1559,6 @@ if (forceRefresh) refreshCurrentView();
 
             document.getElementById('um-access-hvac').checked = access.includes('hvac');
             document.getElementById('um-access-smart').checked = access.includes('smart');
-
-            document.getElementById('um-uid').value = (user?.uid || (user?.authProvider === 'firebase' ? user?.id : "") || "");
 
             // populate contractor link list
             const select = document.getElementById('um-contractor-link');
