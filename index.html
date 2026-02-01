@@ -588,7 +588,22 @@ let storage = null;
 
         let activeCompanyKey = "hvac";
 
-        function normalizeCompanyKey(v) { return (v && String(v).trim()) ? String(v).trim() : "hvac"; }
+        function normalizeCompanyKey(v) {
+            const raw = (v && String(v).trim()) ? String(v).trim() : "";
+            if (!raw) return "hvac";
+            const s = raw.toLowerCase();
+
+            // Common aliases / variants
+            if (s === "all") return "all";
+            if (s.includes("smart")) return "smart";
+            if (s.includes("hvac")) return "hvac";
+
+            // Exact keys
+            if (s === "smart" || s === "hvac") return s;
+
+            // Fallback (treat unknown as hvac to keep legacy behavior)
+            return "hvac";
+        }
 
         // --- Data formatting helpers (required by Payments / Reports / Users) ---
         function money(value) {
@@ -677,12 +692,18 @@ let storage = null;
             } catch(e) {}
         }
 
+        
         function canSwitchCompany() {
             if (COMPANY_LOCKED_FROM_URL) return false;
             if (!currentUser) return true; // pre-login selection
-            const access = currentUser.companyAccess || (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
-            return Array.isArray(access) && access.length > 1;
+            if (isTruthySuperAdmin(currentUser)) return true;
+            const access = Array.isArray(currentUser.companyAccess)
+                ? currentUser.companyAccess.map(normalizeCompanyKey).filter(Boolean)
+                : (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
+            const uniq = Array.from(new Set(access));
+            return uniq.length > 1;
         }
+
 
         function applyCompanyBranding() {
             const meta = COMPANIES[activeCompanyKey] || COMPANIES.hvac;
@@ -734,9 +755,24 @@ let storage = null;
                 else loginPicker.classList.remove("hidden");
             }
 
-            // Header switcher
+            // Header switcher (options limited by profile access)
             const switcher = document.getElementById("company-switch");
             if (switcher) {
+                let allowed = COMPANY_KEYS.slice();
+                if (currentUser && !isTruthySuperAdmin(currentUser)) {
+                    allowed = Array.isArray(currentUser.companyAccess) && currentUser.companyAccess.length
+                        ? currentUser.companyAccess.map(normalizeCompanyKey).filter(Boolean)
+                        : (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
+                    allowed = Array.from(new Set(allowed)).filter(k => k === "hvac" || k === "smart");
+                }
+                // Rebuild options to avoid showing unauthorized workspaces
+                const opts = [];
+                allowed.forEach(k => {
+                    if (k === "hvac") opts.push('<option value="hvac">HVAC</option>');
+                    if (k === "smart") opts.push('<option value="smart">SMART</option>');
+                });
+                if (!opts.length) opts.push('<option value="hvac">HVAC</option>');
+                switcher.innerHTML = opts.join('');
                 switcher.value = activeCompanyKey;
                 if (canSwitchCompany() && !COMPANY_LOCKED_FROM_URL) switcher.classList.remove("hidden");
                 else switcher.classList.add("hidden");
@@ -748,12 +784,29 @@ let storage = null;
             document.title = "D2 Contractors - " + meta.label;
         }
 
-        function selectCompany(key, persist = false) {
-            activeCompanyKey = (key === "smart") ? "smart" : "hvac";
+        
+function selectCompany(key, persist = false) {
+            const normalized = normalizeCompanyKey(key);
+            // Enforce company access for signed-in users (prevents stale sessions/localStorage tampering)
+            if (currentUser && !isTruthySuperAdmin(currentUser)) {
+                const allowed = Array.isArray(currentUser.companyAccess) && currentUser.companyAccess.length
+                    ? currentUser.companyAccess.map(normalizeCompanyKey).filter(Boolean)
+                    : (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
+                const uniq = Array.from(new Set(allowed));
+                if (uniq.length && !uniq.includes(normalized)) {
+                    showToast("No access to this company.");
+                    // Revert selector UI
+                    const sw = document.getElementById("company-switch");
+                    if (sw) sw.value = normalizeCompanyKey(currentUser.companyKey || uniq[0] || activeCompanyKey);
+                    return;
+                }
+            }
+
+            activeCompanyKey = (normalized === "smart") ? "smart" : "hvac";
             if (persist) saveCompanyToStorage();
             applyCompanyBranding();
 
-            // Keep user context aligned to the active workspace
+            // Update current user's active workspace + role
             if (currentUser) {
                 currentUser.companyKey = activeCompanyKey;
                 if (currentUser.rolesByCompany && currentUser.rolesByCompany[activeCompanyKey]) {
@@ -766,6 +819,7 @@ let storage = null;
                 saveSession();
             }
         }
+
 
         function handleCompanySwitch(key) {
             if (!canSwitchCompany()) return;
@@ -1187,7 +1241,11 @@ let storage = null;
                             rolesByCompany: rbc,
                             updatedAt: new Date().toISOString()
                         };
-                        try { await usersCol.doc(foundUser.uid).set(patch, { merge: true }); } catch (e) {}
+	                        try {
+	                            await usersCol.doc(foundUser.uid).set(patch, { merge: true });
+	                            // Mirror SUPER ADMIN role into companies/{company}/users/{uid} so UI and rules stay consistent.
+	                            await syncCompanyMembership(foundUser.uid, Object.assign({}, foundUser, patch));
+	                        } catch (e) {}
                         Object.assign(foundUser, patch);
                         foundUser.isSuperAdmin = true;
                         foundUser.isAdmin = true;
@@ -1442,11 +1500,36 @@ if (forceRefresh) refreshCurrentView();
                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
             });
 
-            // Enforce company lock for non-all users
-            if (currentUser && currentUser.companyKey && currentUser.companyKey !== 'all') {
-                activeCompanyKey = normalizeCompanyKey(currentUser.companyKey);
-            } else if (!currentUser) {
+            // Resolve workspace (re-validates access on every load)
+            if (!currentUser) {
                 activeCompanyKey = loadCompanyFromStorage();
+            } else if (isTruthySuperAdmin(currentUser)) {
+                // Super Admin can access all workspaces
+                activeCompanyKey = normalizeCompanyKey(activeCompanyKey || currentUser.companyKey || loadCompanyFromStorage() || "hvac");
+                if (activeCompanyKey === "all") activeCompanyKey = "hvac";
+                currentUser.companyAccess = COMPANY_KEYS.slice();
+                currentUser.companyKey = activeCompanyKey;
+            } else {
+                const allowed = Array.isArray(currentUser.companyAccess) && currentUser.companyAccess.length
+                    ? currentUser.companyAccess.map(normalizeCompanyKey).filter(Boolean)
+                    : (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
+                const uniqAllowed = Array.from(new Set(allowed));
+
+                activeCompanyKey = normalizeCompanyKey(activeCompanyKey || currentUser.companyKey || loadCompanyFromStorage() || "hvac");
+
+                if (uniqAllowed.length) {
+                    if (!uniqAllowed.includes(activeCompanyKey)) activeCompanyKey = uniqAllowed[0];
+                } else {
+                    showToast("No company access assigned. Please contact Super Admin.");
+                    logout();
+                    return;
+                }
+
+                currentUser.companyKey = activeCompanyKey;
+                if (currentUser.rolesByCompany && currentUser.rolesByCompany[activeCompanyKey]) {
+                    currentUser.role = currentUser.rolesByCompany[activeCompanyKey];
+                }
+                saveSession();
             }
 
             saveCompanyToStorage();
@@ -1720,6 +1803,11 @@ if (forceRefresh) refreshCurrentView();
         }
         async function deleteUser(id) {
              if (!currentUser || !currentUser.isSuperAdmin) { showToast("Access denied"); return; }
+	             const target = appUsers.find(u => u.id === id);
+	             if (target && isSuperAdminEmail(target.email || "")) {
+	                 showToast("Super Admin cannot be deactivated.");
+	                 return;
+	             }
              if(!confirm("Deactivate user access?")) return;
              const isAIPreview = typeof __app_id !== 'undefined';
              const uCollection = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users') : db.collection('app_users');
@@ -2018,14 +2106,33 @@ async function handleSaveUser(){
 
             // Password is only stored for legacy users (not recommended). For Firebase users, leave blank.
             document.getElementById('um-pass').value = "";
-            document.getElementById('um-role').value = user?.role || "employee";
+	            const isEditingSuperAdmin = !!(user && isSuperAdminEmail(user.email || ""));
+	            const roleEl = document.getElementById('um-role');
+	            if (roleEl) roleEl.value = isEditingSuperAdmin ? 'super_admin' : (user?.role || "employee");
 
             const access = Array.isArray(user?.companyAccess)
                 ? user.companyAccess.map(normalizeCompanyKey)
                 : (user?.companyKey ? [normalizeCompanyKey(user.companyKey)] : [activeCompanyKey]);
 
-            document.getElementById('um-access-hvac').checked = access.includes('hvac');
-            document.getElementById('um-access-smart').checked = access.includes('smart');
+	            const hvacEl = document.getElementById('um-access-hvac');
+	            const smartEl = document.getElementById('um-access-smart');
+	            if (hvacEl) hvacEl.checked = isEditingSuperAdmin ? true : access.includes('hvac');
+	            if (smartEl) smartEl.checked = isEditingSuperAdmin ? true : access.includes('smart');
+
+	            // Lock SUPER ADMIN so it cannot be downgraded/de-scoped by accident.
+	            if (isEditingSuperAdmin) {
+	                const emailEl = document.getElementById('um-email');
+	                if (emailEl) emailEl.disabled = true;
+	                if (roleEl) roleEl.disabled = true;
+	                if (hvacEl) hvacEl.disabled = true;
+	                if (smartEl) smartEl.disabled = true;
+	            } else {
+	                const emailEl = document.getElementById('um-email');
+	                if (emailEl) emailEl.disabled = false;
+	                if (roleEl) roleEl.disabled = false;
+	                if (hvacEl) hvacEl.disabled = false;
+	                if (smartEl) smartEl.disabled = false;
+	            }
 
             // populate contractor link list
             const select = document.getElementById('um-contractor-link');
@@ -2400,24 +2507,29 @@ function renderUsers() {
                 .slice()
                 .sort((a, b) => (a.name || "").localeCompare((b.name || "")))
                 .map(u => {
-                    const role = (u.role || "employee");
-                    const linked = (role === 'contractor')
+                    const baseRole = (u.role || "employee");
+                    const isRowSuperAdmin = isSuperAdminEmail(u.email || "");
+                    const roleLabel = isRowSuperAdmin ? "Super Admin" : (baseRole || "employee");
+                    const linked = (baseRole === 'contractor')
                         ? (u.linkedContractorId ? getContractorNameById(u.linkedContractorId) : "(not linked)")
-                        : "D2 Smart (Internal)";
+                        : (activeCompanyKey === 'hvac' ? "D2 HVAC (Internal)" : "D2 Smart (Internal)");
                     const updated = safeDateStr(u.updatedAt || u.createdAt);
+                    const actionsHtml = isRowSuperAdmin
+                        ? `<button onclick="openUserModal('${u.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>`
+                        : `
+                            <button onclick="openUserModal('${u.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>
+                            <button onclick="deleteUser('${u.id}')" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded font-bold text-xs">Delete</button>
+                          `;
                     return `
                         <tr class="hover:bg-slate-50">
                             <td class="py-3 px-3">
                                 <div class="font-bold text-slate-800">${u.name || "-"}</div>
                                 <div class="text-xs text-slate-500">${u.email || "-"}</div>
                             </td>
-                            <td class="py-3 px-3 text-sm font-bold text-slate-700 capitalize">${role}</td>
+                            <td class="py-3 px-3 text-sm font-bold text-slate-700">${roleLabel}</td>
                             <td class="py-3 px-3 text-sm text-slate-600">${linked}</td>
                             <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${updated || "-"}</td>
-                            <td class="py-3 px-3 action-col whitespace-nowrap">
-                                <button onclick="openUserModal('${u.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>
-                                <button onclick="deleteUser('${u.id}')" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded font-bold text-xs">Delete</button>
-                            </td>
+                            <td class="py-3 px-3 action-col whitespace-nowrap">${actionsHtml}</td>
                         </tr>
                     `;
                 }).join("");
