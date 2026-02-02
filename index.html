@@ -198,7 +198,14 @@
                 <input type="hidden" id="um-id">
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Name</label><input type="text" id="um-name" required class="w-full p-2 border border-slate-300 rounded" placeholder="e.g. John Doe"></div>
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" id="um-email" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"></div>
-                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label><input type="text" id="um-pass" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="New Password"></div>
+                <div id="um-pass-wrap">
+  <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label>
+  <div class="flex items-center gap-2">
+    <input type="text" id="um-pass" class="flex-1 w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Set only when creating a new user">
+    <button type="button" id="um-reset-btn" onclick="sendPasswordResetFromModal()" class="px-3 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 text-sm font-bold whitespace-nowrap">Send reset</button>
+  </div>
+  <div id="um-pass-note" class="text-[11px] text-slate-500 mt-1">Passwords are not readable. For existing users, use “Send reset”.</div>
+</div>
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label><select id="um-role" onchange="toggleContractorSelect()" class="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"><option value="admin">Admin</option><option value="employee">Employee</option><option value="contractor">Contractor (Portal)</option></select></div>
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Company Access</label>
@@ -1963,33 +1970,38 @@ if (forceRefresh) refreshCurrentView();
 
 
 
+
 async function handleSaveUser(){
           if (!currentUser || !currentUser.isSuperAdmin) { showToast('Access denied'); return; }
-          const modal = el('user-modal');
           const isAIPreview = typeof __app_id !== 'undefined';
 
           const uCollection = isAIPreview
               ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users')
               : db.collection('app_users');
 
-          const name = el('user-name').value.trim();
-          const emailRaw = el('user-email').value.trim();
+          const id = (document.getElementById('um-id')?.value || '').trim(); // uid/doc id
+          const name = (document.getElementById('um-name')?.value || '').trim();
+          const emailRaw = (document.getElementById('um-email')?.value || '').trim();
           const email = emailRaw.toLowerCase();
-          const passwordPlain = el('user-password').value; // optional for updates, required for new
-          const role = el('user-role').value;
-          const allowHVAC = el('user-access-hvac').checked;
-          const allowSmart = el('user-access-smart').checked;
+          const passwordPlain = (document.getElementById('um-pass')?.value || '').trim(); // create only
+          const role = (document.getElementById('um-role')?.value || 'employee').trim();
+          const allowHVAC = !!document.getElementById('um-access-hvac')?.checked;
+          const allowSmart = !!document.getElementById('um-access-smart')?.checked;
+
           const companyAccess = [];
           if (allowHVAC) companyAccess.push('hvac');
           if (allowSmart) companyAccess.push('smart');
 
+          const linkedContractorId = (document.getElementById('um-contractor-link')?.value || '').trim();
+
           if (!email || !email.includes('@')) { showToast('Please enter a valid email.'); return; }
           if (!companyAccess.length) { showToast('Select at least one company access.'); return; }
+          if (role === 'contractor' && !linkedContractorId) { showToast('Select the contractor profile to link.'); return; }
 
           // Load existing user doc (if editing)
           let existing = null;
-          if (editingUserId) {
-              const snap = await uCollection.doc(editingUserId).get();
+          if (id) {
+              const snap = await uCollection.doc(id).get();
               existing = snap.exists ? snap.data() : null;
               // Prevent changing email for existing users (requires Admin SDK)
               if (existing && existing.email && existing.email.toLowerCase() !== email) {
@@ -1998,7 +2010,7 @@ async function handleSaveUser(){
               }
           }
 
-          // SUPER ADMIN profile is fixed
+          // SUPER ADMIN profile is fixed by allowlist
           const isTargetSuperAdmin = SUPER_ADMIN_EMAILS.has(email);
           const finalRole = isTargetSuperAdmin ? 'super_admin' : role;
 
@@ -2007,7 +2019,7 @@ async function handleSaveUser(){
           companyAccess.forEach(k => { rolesByCompany[k] = finalRole; });
 
           // Create auth user if needed (new user)
-          let uid = (existing && existing.uid) || editingUserId || '';
+          let uid = (existing && existing.uid) || id || '';
           if (!uid) {
               if (!passwordPlain || passwordPlain.length < 6) {
                   showToast('Password required (min 6 chars) for new users.');
@@ -2021,29 +2033,11 @@ async function handleSaveUser(){
               }
           }
 
-          // Password handling:
-          // - If password provided, attempt to update Firebase Auth password using stored previous passwordEnc
-          // - Store passwordEnc for future updates
-          let passwordEnc = (existing && existing.passwordEnc) ? existing.passwordEnc : '';
-          if (passwordPlain && passwordPlain.length >= 6) {
-              try {
-                  if (existing && existing.passwordEnc) {
-                      const oldPlain = atob(existing.passwordEnc);
-                      await updateFirebaseAuthPassword(email, oldPlain, passwordPlain);
-                  } else if (existing && !existing.passwordEnc) {
-                      // If we don't have the old password, we cannot update directly; fallback to reset email
-                      await firebase.auth().sendPasswordResetEmail(email);
-                      showToast('Reset link sent (old password unknown).');
-                  }
-                  passwordEnc = btoa(passwordPlain);
-              } catch (e) {
-                  // Fallback to reset email if update fails
-                  try { await firebase.auth().sendPasswordResetEmail(email); } catch (err) {}
-                  showToast('Password update failed; reset link sent. ' + (e && e.message ? e.message : ''));
-              }
-          }
+          // NOTE: Existing passwords cannot be viewed. For existing users, use reset email.
+          // We do not accept direct password changes for existing users from the client.
+          // (Firebase Auth does not allow admin password changes without Admin SDK.)
 
-          // Build base payload
+          // Build payload
           const payload = {
               uid,
               name: (isTargetSuperAdmin ? SUPER_ADMIN_NAME : (name || email)),
@@ -2055,9 +2049,20 @@ async function handleSaveUser(){
               authProvider: 'firebase',
               updatedAt: new Date().toISOString()
           };
-          if (passwordEnc) payload.passwordEnc = passwordEnc;
 
-          // Persist user doc
+          if (finalRole === 'contractor') {
+              payload.linkedContractorId = linkedContractorId;
+          } else {
+              // Clear link if switching away from contractor
+              payload.linkedContractorId = null;
+          }
+
+          // For new users only, store legacy passwordEnc if you still rely on it elsewhere.
+          // This is not recommended for security reasons.
+          if (!id && passwordPlain) {
+              try { payload.passwordEnc = btoa(passwordPlain); } catch(e) {}
+          }
+
           await uCollection.doc(uid).set(payload, { merge: true });
 
           // Mirror into per-company collections for rules/lookup (companies/{company}/users/{uid})
@@ -2093,7 +2098,8 @@ async function handleSaveUser(){
         }
 
 
-        function toggleContractorSelect() {
+
+        function toggleContractorSelect( {
             const role = document.getElementById('um-role')?.value;
             const div = document.getElementById('um-contractor-div');
             const select = document.getElementById('um-contractor-link');
@@ -2119,7 +2125,21 @@ async function handleSaveUser(){
             document.getElementById('um-email').value = user?.email || "";
 
             // Password is only stored for legacy users (not recommended). For Firebase users, leave blank.
-            document.getElementById('um-pass').value = "";
+                        // Configure password UI:
+            // - Create user: password required, reset button hidden
+            // - Edit user: password not required (not readable), reset button available
+            const passEl = document.getElementById('um-pass');
+            const resetBtn = document.getElementById('um-reset-btn');
+            const isEditing = !!id;
+            if (passEl) {
+                passEl.value = "";
+                passEl.required = !isEditing; // only required when creating a new user
+                passEl.placeholder = isEditing ? "Not readable. Use reset." : "New Password (required)";
+                passEl.disabled = isEditing; // prevent false expectation of changing other user's password from client
+            }
+            if (resetBtn) resetBtn.classList.toggle('hidden', !isEditing);
+            setupUserModalUX();
+
 	            const isEditingSuperAdmin = !!(user && isSuperAdminEmail(user.email || ""));
 	            const roleEl = document.getElementById('um-role');
 	            if (roleEl) roleEl.value = isEditingSuperAdmin ? 'super_admin' : (user?.role || "employee");
@@ -2915,15 +2935,49 @@ function renderUsers() {
             }
         }
 
-        // --- GLOBAL UI HELPERS ---
+        
+        async function sendPasswordResetFromModal() {
+            if (!currentUser || !currentUser.isSuperAdmin) { showToast('Access denied'); return; }
+            const email = (document.getElementById('um-email')?.value || '').trim().toLowerCase();
+            if (!email) { showToast('Email is required'); return; }
+            try {
+                await auth.sendPasswordResetEmail(email);
+                showToast('Password reset email sent.');
+            } catch (e) {
+                console.error(e);
+                showToast(e?.message || 'Failed to send reset email');
+            }
+        }
+
+        function setupUserModalUX() {
+            const modal = document.getElementById('user-modal');
+            if (!modal || modal.dataset.bound === '1') return;
+            modal.dataset.bound = '1';
+
+            // Click outside closes
+            modal.addEventListener('mousedown', (ev) => {
+                if (ev.target === modal) closeUserModal();
+            });
+
+            // ESC closes
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    const m = document.getElementById('user-modal');
+                    if (m && !m.classList.contains('hidden')) closeUserModal();
+                }
+            });
+        }
+
+// --- GLOBAL UI HELPERS ---
         function closeEditModal() {
             const modal = document.getElementById('edit-c-modal');
             if(modal) modal.classList.add('hidden');
         }
         function closeUserModal() {
-            el('user-email').disabled = false;
-          const modal = document.getElementById('user-modal');
-            if(modal) modal.classList.add('hidden');
+            const emailEl = document.getElementById('um-email');
+            if (emailEl) emailEl.disabled = false;
+            const modal = document.getElementById('user-modal');
+            if (modal) modal.classList.add('hidden');
         }
         function closeEditPaymentModal() {
             const modal = document.getElementById('edit-payment-modal');
