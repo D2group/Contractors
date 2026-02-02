@@ -1026,32 +1026,6 @@ function selectCompany(key, persist = false) {
             }
         }
 
-            const prevText = btn.textContent;
-            btn.textContent = "Sending reset..."; 
-            btn.disabled = true;
-
-            try {
-                await ensureFirebaseAuth();
-                await firebase.auth().sendPasswordResetEmail(email);
-                infoDiv.textContent = "Password reset email sent. Check your inbox (and spam).";
-                infoDiv.classList.remove('hidden');
-            } catch (err) {
-                const code = (err && err.code) ? err.code : "";
-                let msg = "Unable to send reset email. Please try again.";
-                if (code === "auth/invalid-email") msg = "Invalid email address.";
-                if (code === "auth/user-not-found") msg = "No user found with this email.";
-                if (code === "auth/too-many-requests") msg = "Too many attempts. Please wait a bit and try again.";
-                errorDiv.textContent = msg;
-                errorDiv.classList.remove('hidden');
-            } finally {
-                btn.textContent = prevText;
-                btn.disabled = false;
-            }
-        }
-
-
-
-        
         async function handleLogin() {
             const emailInput = document.getElementById('email').value.trim();
             const email = emailInput.toLowerCase();
@@ -1272,7 +1246,7 @@ function selectCompany(key, persist = false) {
 
                             try { storedPlainFromEnc = storedEnc ? atob(storedEnc) : ''; } catch(e) {}
 
-                            if ((storedPass === passRaw || storedPass === passTrimmed) || (storedPass === passRaw || storedPass === passTrimmed)B64 || storedEnc === passB64 || (storedPlainFromEnc === passRaw || storedPlainFromEnc === passTrimmed)) {
+                            if ((storedPass === passRaw || storedPass === passTrimmed) || storedPass === passB64 || storedEnc === passB64 || (storedPlainFromEnc === passRaw || storedPlainFromEnc === passTrimmed)) {
                                 foundUser = { ...data, id: doc.id, authProvider: 'legacy' };
 
                         // Enforce company access for legacy accounts
@@ -2158,7 +2132,7 @@ async function handleSaveUser(){
 
 
 
-        function toggleContractorSelect( {
+        function toggleContractorSelect() {
             const role = document.getElementById('um-role')?.value;
             const div = document.getElementById('um-contractor-div');
             const select = document.getElementById('um-contractor-link');
