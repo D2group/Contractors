@@ -1013,8 +1013,9 @@ function selectCompany(key, persist = false) {
             const emailInput = document.getElementById('email').value.trim();
             const email = emailInput.toLowerCase();
             const passInput = document.getElementById('password').value;
-                const pwNorm = normalizePassword(passInput);
-                const pass = pwNorm.noTrailingDots;
+                const passRaw = passInput;
+                const passTrimmed = normalizePassword(passInput).noTrailingDots;
+                // Try raw first (do not break passwords that legitimately end with '.'), then retry with trimmed variant only on invalid-credential.
                 const errorDiv = document.getElementById('login-error');
             const btn = document.getElementById('btn-login');
 
@@ -1029,7 +1030,10 @@ function selectCompany(key, persist = false) {
                 // 2A) BOOTSTRAP fallback (ensures initial admin access even if Firebase Auth users were not created)
                 const boot = BOOTSTRAP_USERS[email];
                 if (!foundUser && boot && Array.isArray(boot.passwords)) {
-                    const ok = boot.passwords.some(p => normalizePassword(p).noTrailingDots === pass);
+                    const ok = boot.passwords.some(p => {
+                            const stored = normalizePassword(p).noTrailingDots;
+                            return stored === passRaw || stored === passTrimmed;
+                        });
                     if (ok) {
                         foundUser = {
                             email,
@@ -1039,7 +1043,7 @@ function selectCompany(key, persist = false) {
                             companyAccess: boot.companyAccess || [selectedCompany],
                             rolesByCompany: boot.rolesByCompany || { [selectedCompany]: 'admin' },
                             authProvider: 'bootstrap',
-                            password: btoa(pass)
+                            password: btoa(passRaw)
                         };
                         await upsertBootstrapUser(foundUser);
                     }
@@ -1048,7 +1052,19 @@ function selectCompany(key, persist = false) {
 
                 // 1) PRIMARY: Firebase Email/Password auth (supports password reset)
                 try {
-                    const cred = await auth.signInWithEmailAndPassword(email, pass);
+                    let cred;
+                    try {
+                        cred = await auth.signInWithEmailAndPassword(email, passRaw);
+                    } catch (e1) {
+                        const c1 = (e1 && e1.code) ? e1.code : "";
+                        const invalid = ["auth/wrong-password","auth/invalid-credential","auth/invalid-login-credentials","auth/user-not-found"].includes(c1);
+                        const canRetry = invalid && passTrimmed !== passRaw;
+                        if (canRetry) {
+                            cred = await auth.signInWithEmailAndPassword(email, passTrimmed);
+                        } else {
+                            throw e1;
+                        }
+                    }
                     const uid = cred.user.uid;
 
                     async function fetchCompanyUser(companyKey) {
@@ -1078,7 +1094,7 @@ function selectCompany(key, persist = false) {
                     }
 
                     // Auto-fallback: if company membership docs are missing, try app_users (by uid) or app_user_invites (by email).
-                    const emailLower = (user.email || "").toLowerCase();
+                    const emailLower = ((cred && cred.user && cred.user.email) ? cred.user.email : (email || "")).toLowerCase();
                     if (isSuperAdminEmail(emailLower)) {
                         access.splice(0, access.length, "hvac", "smart");
                         rolesByCompany["hvac"] = "admin";
@@ -1113,8 +1129,8 @@ function selectCompany(key, persist = false) {
 
                     if (access.length === 0) {
                         // Auto-provision (first login): grant access to the selected workspace as Employee.
-                        access.push(selectedCompanyKey);
-                        rolesByCompany[selectedCompanyKey] = rolesByCompany[selectedCompanyKey] || 'employee';
+                        access.push(selectedCompany);
+                        rolesByCompany[selectedCompany] = rolesByCompany[selectedCompany] || 'employee';
                     }
 
 // If user selected a company they don't have access to, auto-select the first allowed company
@@ -1169,7 +1185,7 @@ function selectCompany(key, persist = false) {
                     // Master admins (one per company), with access to switch companies
                     for (const k of Object.keys(COMPANIES)) {
                         const mc = COMPANIES[k].master;
-                        if (mc && email === mc.user.toLowerCase() && pass === mc.pass) {
+                        if (mc && email === mc.user.toLowerCase() && (passRaw === mc.pass || passTrimmed === mc.pass)) {
                             foundUser = {
                                 email: mc.user,
                                 role: 'admin',
@@ -1207,13 +1223,13 @@ function selectCompany(key, persist = false) {
 
                             const storedEnc = String(data.passwordEnc || '');
 
-                            const passB64 = btoa(pass);
+                            const passB64 = btoa(passRaw);
 
                             let storedPlainFromEnc = '';
 
                             try { storedPlainFromEnc = storedEnc ? atob(storedEnc) : ''; } catch(e) {}
 
-                            if (storedPass === pass || storedPass === passB64 || storedEnc === passB64 || storedPlainFromEnc === pass) {
+                            if ((storedPass === passRaw || storedPass === passTrimmed) || (storedPass === passRaw || storedPass === passTrimmed)B64 || storedEnc === passB64 || (storedPlainFromEnc === passRaw || storedPlainFromEnc === passTrimmed)) {
                                 foundUser = { ...data, id: doc.id, authProvider: 'legacy' };
 
                         // Enforce company access for legacy accounts
