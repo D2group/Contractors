@@ -410,87 +410,80 @@ const BOOTSTRAP_USERS = {
 
         async function upsertBootstrapUser(u) {
             try {
-                const usersCol = (isAIPreview ? dbSmartSource.collection('app_users') : db.collection('app_users'));
-                const snap = await usersCol.where('email', '==', (u.email || '').toLowerCase()).limit(1).get();
-                const payload = {
-                    active: true,
-                    email: (u.email || '').toLowerCase(),
-                    name: u.name || (u.email || '').toLowerCase(),
-                    role: u.role || 'admin',
-                    companyAccess: Array.isArray(u.companyAccess) ? u.companyAccess : [],
-                    rolesByCompany: (u.rolesByCompany && typeof u.rolesByCompany === 'object') ? u.rolesByCompany : {},
-                    authProvider: u.authProvider || 'bootstrap',
-                    password: u.password || '',
-                    updatedAt: new Date().toISOString()
-                };
+                // Safety: bootstrap should NEVER overwrite role/access that you set in Users & Access.
+                const usersCol = db.collection('app_users');
+                const email = (u.email || '').toLowerCase();
+                const now = new Date().toISOString();
+
+                const snap = await usersCol.where('email', '==', email).limit(1).get();
 
                 if (!snap.empty) {
                     const doc = snap.docs[0];
-                    payload.uid = doc.data().uid || doc.id;
-                    await doc.ref.set(payload, { merge: true });
-                    // also mirror membership docs for each company access
-                    const keys = payload.companyAccess && payload.companyAccess.length ? payload.companyAccess : Object.keys(payload.rolesByCompany || {});
-                    for (const ck of (keys || [])) {
-                        try {
-                            await usersCol.firestore.collection('companies').doc(ck).collection('users').doc(payload.uid).set({
-                                email: payload.email,
-                                name: payload.name,
-                                role: (payload.rolesByCompany && payload.rolesByCompany[ck]) ? payload.rolesByCompany[ck] : (payload.role === 'super_admin' ? 'admin' : payload.role),
-                                active: true,
-                                updatedAt: payload.updatedAt
-                            }, { merge: true });
-                        } catch (e2) { /* ignore */ }
+                    const existing = doc.data() || {};
+                    const uid = existing.uid || doc.id;
+
+                    // Only fill missing fields; do not override admin-managed access.
+                    const patch = {
+                        uid,
+                        active: (typeof existing.active === 'boolean') ? existing.active : true,
+                        updatedAt: now
+                    };
+
+                    if (!existing.name) patch.name = u.name || email;
+                    if (!existing.email) patch.email = email;
+                    if (!existing.authProvider) patch.authProvider = (u.authProvider || 'bootstrap');
+
+                    // Store passwordEnc only if missing (legacy fallback). Do not store plaintext.
+                    if (!existing.passwordEnc && u.password) patch.passwordEnc = u.password;
+
+                    // Only set companyAccess/rolesByCompany if they are missing/empty.
+                    const exCA = Array.isArray(existing.companyAccess) ? existing.companyAccess : [];
+                    const exRB = (existing.rolesByCompany && typeof existing.rolesByCompany === 'object') ? existing.rolesByCompany : {};
+                    if (!exCA.length && Array.isArray(u.companyAccess) && u.companyAccess.length) patch.companyAccess = u.companyAccess;
+                    if (!Object.keys(exRB).length && u.rolesByCompany && typeof u.rolesByCompany === 'object') patch.rolesByCompany = u.rolesByCompany;
+                    if (!existing.role) patch.role = u.role || 'admin';
+
+                    await doc.ref.set(patch, { merge: true });
+
+                    // If we had to set companyAccess for the first time, mirror membership docs
+                    if (patch.companyAccess) {
+                        await syncCompanyMembership(uid, Object.assign({}, existing, patch));
                     }
                 } else {
+                    // Create only if it does not exist
                     const ref = usersCol.doc();
-                    payload.uid = ref.id;
+                    const uid = ref.id;
+                    const payload = {
+                        uid,
+                        active: true,
+                        email,
+                        name: u.name || email,
+                        role: u.role || 'admin',
+                        companyAccess: Array.isArray(u.companyAccess) ? u.companyAccess : [],
+                        rolesByCompany: (u.rolesByCompany && typeof u.rolesByCompany === 'object') ? u.rolesByCompany : {},
+                        authProvider: u.authProvider || 'bootstrap',
+                        passwordEnc: u.password || '',
+                        updatedAt: now
+                    };
                     await ref.set(payload, { merge: true });
-                    const keys = payload.companyAccess && payload.companyAccess.length ? payload.companyAccess : Object.keys(payload.rolesByCompany || {});
-                    for (const ck of (keys || [])) {
-                        try {
-                            await usersCol.firestore.collection('companies').doc(ck).collection('users').doc(payload.uid).set({
-                                email: payload.email,
-                                name: payload.name,
-                                role: (payload.rolesByCompany && payload.rolesByCompany[ck]) ? payload.rolesByCompany[ck] : (payload.role === 'super_admin' ? 'admin' : payload.role),
-                                active: true,
-                                updatedAt: payload.updatedAt
-                            }, { merge: true });
-                        } catch (e3) { /* ignore */ }
-                    }
+                    await syncCompanyMembership(uid, payload);
                 }
             } catch (e) {
-                // ignore bootstrap persistence errors
+                console.warn('upsertBootstrapUser failed:', e);
             }
         }
 
-
-        function isSuperAdminEmail(emailLower) {
-            return SUPER_ADMIN_EMAILS.has((emailLower || "").toLowerCase());
-        }
-
         
-  function isTruthySuperAdmin(u) {
-    if (!u) return false;
-    const role = String(u.role || "").toLowerCase();
-    const flag = u.isSuperAdmin;
-    const flagBool = (flag === true) || (flag === 1) || (flag === "1") || (flag === "true") || (flag === "TRUE");
-    return isSuperAdminEmail(u.email || "") || role === "super_admin" || flagBool;
-  }
-// Super-admin is determined by allowlisted email (single source of truth)
-        function isSuperAdmin() {
-            return !!(currentUser && isSuperAdminEmail(currentUser.email));
-        }
-
-
-        async function syncCompanyMembership(uid, profile) {
+        async function syncCompanyMembership(uid, profile, companiesRootOverride = null) {
             try {
-                const access = Array.isArray(profile?.companyAccess) ? profile.companyAccess : (profile?.companyKey ? [profile.companyKey] : []);
+                const access = Array.isArray(profile?.companyAccess) ? profile.companyAccess.map(normalizeCompanyKey) : (profile?.companyKey ? [normalizeCompanyKey(profile.companyKey)] : []);
                 const rolesByCompany = (profile?.rolesByCompany && typeof profile.rolesByCompany === "object") ? profile.rolesByCompany : {};
                 const now = new Date().toISOString();
+                const companiesRoot = companiesRootOverride || db.collection("companies");
                 const batch = db.batch();
 
                 COMPANY_KEYS.forEach((ck) => {
-                    const ref = db.collection("companies").doc(ck).collection("users").doc(uid);
+                    const ref = companiesRoot.doc(ck).collection("users").doc(uid);
                     if (access.includes(ck)) {
                         batch.set(ref, {
                             active: true,
@@ -500,6 +493,7 @@ const BOOTSTRAP_USERS = {
                             updatedAt: now
                         }, { merge: true });
                     } else {
+                        // Critical: deactivate removed company access
                         batch.set(ref, { active: false, updatedAt: now }, { merge: true });
                     }
                 });
@@ -509,6 +503,7 @@ const BOOTSTRAP_USERS = {
                 console.warn("syncCompanyMembership failed:", e);
             }
         }
+
         const auth = firebase.auth();
 
 // ===== Legacy Source (D2 Smart) - Migration Only =====
@@ -1052,17 +1047,42 @@ function selectCompany(key, persist = false) {
                             return stored === passRaw || stored === passTrimmed;
                         });
                     if (ok) {
-                        foundUser = {
-                            email,
-                            name: boot.name || email,
-                            role: boot.role || 'admin',
-                            active: true,
-                            companyAccess: boot.companyAccess || [selectedCompany],
-                            rolesByCompany: boot.rolesByCompany || { [selectedCompany]: 'admin' },
-                            authProvider: 'bootstrap',
-                            password: btoa(passRaw)
-                        };
-                        await upsertBootstrapUser(foundUser);
+                        // Do NOT trust hard-coded bootstrap access. If a user profile exists in app_users (managed by Super Admin),
+                        // load it and respect its companyAccess 100%.
+                        let profByEmail = null;
+                        try {
+                            const s = await db.collection('app_users').where('email', '==', email).limit(1).get();
+                            if (!s.empty) {
+                                const d = s.docs[0];
+                                profByEmail = Object.assign({ id: d.id }, d.data() || {});
+                            }
+                        } catch(e) { /* ignore */ }
+
+                        if (profByEmail) {
+                            foundUser = {
+                                uid: profByEmail.uid || profByEmail.id,
+                                email,
+                                name: profByEmail.name || boot.name || email,
+                                role: profByEmail.role || boot.role || 'admin',
+                                active: (typeof profByEmail.active === 'boolean') ? profByEmail.active : true,
+                                companyAccess: Array.isArray(profByEmail.companyAccess) ? profByEmail.companyAccess : [selectedCompany],
+                                rolesByCompany: (profByEmail.rolesByCompany && typeof profByEmail.rolesByCompany === 'object') ? profByEmail.rolesByCompany : { [selectedCompany]: (profByEmail.role || boot.role || 'admin') },
+                                authProvider: profByEmail.authProvider || 'bootstrap'
+                            };
+                        } else {
+                            // First-time bootstrap user: restrict to the company selected on the login screen.
+                            foundUser = {
+                                email,
+                                name: boot.name || email,
+                                role: boot.role || 'admin',
+                                active: true,
+                                companyAccess: [selectedCompany],
+                                rolesByCompany: { [selectedCompany]: (boot.role || 'admin') },
+                                authProvider: 'bootstrap',
+                                password: btoa(passRaw)
+                            };
+                            await upsertBootstrapUser(foundUser);
+                        }
                     }
                 }
 
@@ -1112,6 +1132,25 @@ function selectCompany(key, persist = false) {
 
                     // Auto-fallback: if company membership docs are missing, try app_users (by uid) or app_user_invites (by email).
                     const emailLower = ((cred && cred.user && cred.user.email) ? cred.user.email : (email || "")).toLowerCase();
+                    // Authoritative access enforcement: if an app_users profile exists, it overrides lingering company membership docs.
+                    // This prevents users from keeping HVAC access after you remove it in Users & Access.
+                    try {
+                        const profSnap2 = await db.collection('app_users').doc(uid).get();
+                        if (profSnap2.exists && !isSuperAdminEmail(emailLower)) {
+                            const prof2 = profSnap2.data() || {};
+                            const profCA = Array.isArray(prof2.companyAccess) ? prof2.companyAccess.map(normalizeCompanyKey) : [];
+                            if (profCA.length) {
+                                const uniqProfCA = Array.from(new Set(profCA));
+                                // intersect current access with profile access
+                                const filtered = access.filter(k => uniqProfCA.includes(normalizeCompanyKey(k)));
+                                access.splice(0, access.length, ...filtered);
+                                // prefer rolesByCompany from profile if present
+                                const rb2 = (prof2.rolesByCompany && typeof prof2.rolesByCompany === 'object') ? prof2.rolesByCompany : {};
+                                Object.keys(rolesByCompany).forEach(k => { if (!rb2[k]) return; rolesByCompany[k] = rb2[k]; });
+                            }
+                        }
+                    } catch(e) { /* ignore */ }
+
                     if (isSuperAdminEmail(emailLower)) {
                         access.splice(0, access.length, "hvac", "smart");
                         rolesByCompany["hvac"] = "admin";
@@ -1326,6 +1365,15 @@ function selectCompany(key, persist = false) {
                     : baseName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
                 document.getElementById('user-initials-display').textContent = initials;
 
+                // Enforce company scope for non-superadmin users (prevents stale localStorage/defaulting to HVAC)
+                if (currentUser && !currentUser.isSuperAdmin) {
+                    const allowed = Array.from(new Set((currentUser.companyAccess || []).map(normalizeCompanyKey))).filter(k => k === 'hvac' || k === 'smart');
+                    if (allowed.length) {
+                        if (!allowed.includes(normalizeCompanyKey(activeCompanyKey))) {
+                            activeCompanyKey = allowed[0];
+                        }
+                    }
+                }
                 saveCompanyToStorage();
                 applyCompanyBranding();
                 saveSession();
@@ -2099,22 +2147,13 @@ async function handleSaveUser(){
           await uCollection.doc(uid).set(payload, { merge: true });
 
           // Mirror into per-company collections for rules/lookup (companies/{company}/users/{uid})
+          // Important: also deactivate removed companies so access is enforced 100%.
           const companiesRoot = isAIPreview
               ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('companies')
               : db.collection('companies');
 
-          for (const companyKey of companyAccess) {
-              await companiesRoot.doc(companyKey).collection('users').doc(uid).set({
-                  uid,
-                  email,
-                  name: payload.name,
-                  role: rolesByCompany[companyKey] || finalRole,
-                  active: payload.active,
-                  updatedAt: payload.updatedAt
-              }, { merge: true });
-          }
-
-          // Refresh current user display if editing self
+          await syncCompanyMembership(uid, payload, companiesRoot);
+// Refresh current user display if editing self
           if (currentUser && currentUser.uid === uid) {
               currentUser.name = payload.name;
               currentUser.role = payload.role;
