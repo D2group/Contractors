@@ -373,7 +373,28 @@
         ]);
 
         
-  const SUPER_ADMIN_NAME = "Dante Frota";
+  
+        // Helper: consistent Super Admin detection (UI + security gates)
+        function isTruthySuperAdmin(u) {
+            if (!u) return false;
+            const email = String(u.email || u.userEmail || u.loginEmail || "").toLowerCase();
+            if (email && SUPER_ADMIN_EMAILS.has(email)) return true;
+
+            if (u.isSuperAdmin === true) return true;
+
+            const role = String(u.role || "").toLowerCase();
+            if (role === "super_admin") return true;
+
+            const rolesByCompany = u.rolesByCompany || {};
+            try {
+                return Object.values(rolesByCompany).some(r => String(r || "").toLowerCase() === "super_admin");
+            } catch (e) {
+                return false;
+            }
+        }
+        window.isTruthySuperAdmin = isTruthySuperAdmin;
+
+const SUPER_ADMIN_NAME = "Dante Frota";
 const BOOTSTRAP_USERS = {
             // Bootstrap account(s) to ensure admin access even if Firebase Auth users were not created yet.
             // Used ONLY as a fallback when Firebase Auth sign-in fails.
@@ -1546,53 +1567,121 @@ function grantAccess(isNewLogin) {
             // Users (admin-only)
             if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || isTruthySuperAdmin(currentUser))) {
                 const usersRef = root.collection('app_users');
+                const companiesRoot = root.collection('companies');
 
-                // Firestore rules frequently require scoped queries. We load users by workspace access.
-                // Super Admin sees users from all workspaces (hvac + smart) and can grant/revoke access.
-                const usersBuckets = {};
-                const rebuildUsersFromBuckets = () => {
+                // We keep two sources of truth:
+                // 1) app_users (preferred when rules allow reads)
+                // 2) companies/{company}/users (authoritative for company membership)
+                // This guarantees the Users & Access screen never goes blank if app_users is blocked by rules
+                // or if companyAccess values were saved with inconsistent casing.
+                const usersBuckets = {};      // app_users query buckets
+                const companyBuckets = {};    // per-company membership buckets
+
+                const mergeUsers = () => {
                     const merged = new Map();
-                    Object.values(usersBuckets).forEach(arr => {
-                        (arr || []).forEach(u => merged.set(u.id, u));
-                    });
-                    const all = Array.from(merged.values());
 
-                    if ((window.currentUser && window.isTruthySuperAdmin(currentUser)) && all.length === 0 && !usersLoading) {
-                        ensureUsersLoaded();
-                        return;
-                    }
+                    const upsert = (u) => {
+                        if (!u) return;
+                        const id = u.uid || u.id || (u.email ? String(u.email).toLowerCase() : null);
+                        if (!id) return;
+                        const prev = merged.get(id) || {};
+                        const next = {
+                            ...prev,
+                            ...u,
+                            id: prev.id || u.id || id,
+                            uid: prev.uid || u.uid || u.id || id,
+                            email: String(u.email || prev.email || '').toLowerCase(),
+                            name: u.name || prev.name || '',
+                            active: (u.active !== false) && (prev.active !== false),
+                            companyAccess: Array.isArray(prev.companyAccess) ? [...prev.companyAccess] : [],
+                            rolesByCompany: { ...(prev.rolesByCompany || {}) }
+                        };
 
+                        // Merge company access
+                        const ca = new Set((next.companyAccess || []).map(normalizeCompanyKey).filter(Boolean));
+                        (Array.isArray(u.companyAccess) ? u.companyAccess : []).forEach(x => ca.add(normalizeCompanyKey(x)));
+                        if (u.companyKey) ca.add(normalizeCompanyKey(u.companyKey));
+                        next.companyAccess = Array.from(ca).filter(Boolean);
 
-                    appUsers = all.map(u => {
-                        const ca = Array.isArray(u.companyAccess)
-                            ? u.companyAccess.map(normalizeCompanyKey)
-                            : (u.companyKey ? [normalizeCompanyKey(u.companyKey)] : []);
-                        return { ...u, companyAccess: ca, companyKey: normalizeCompanyKey(u.companyKey || (ca[0] || 'hvac')) };
+                        // Merge roles by company
+                        if (u.rolesByCompany) next.rolesByCompany = { ...next.rolesByCompany, ...u.rolesByCompany };
+                        if (u.companyKey && u.role) next.rolesByCompany[normalizeCompanyKey(u.companyKey)] = u.role;
+
+                        merged.set(id, next);
+                    };
+
+                    // 1) app_users (if available)
+                    Object.values(usersBuckets).forEach(arr => (arr || []).forEach(u => upsert(u)));
+
+                    // 2) companies/{company}/users (always)
+                    Object.values(companyBuckets).forEach(arr => (arr || []).forEach(u => upsert(u)));
+
+                    const all = Array.from(merged.values()).map(u => {
+                        const ca = Array.isArray(u.companyAccess) ? u.companyAccess.map(normalizeCompanyKey).filter(Boolean) : [];
+                        const companyKey = normalizeCompanyKey(u.companyKey || (ca[0] || activeCompanyKey || 'hvac'));
+                        return { ...u, companyAccess: ca, companyKey };
                     }).sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
+
+                    appUsers = all;
 
                     if (window.currentView === 'users') renderUsers();
                 };
 
-                const attachUsersSnapshot = (bucketKey, queryRef) => queryRef.onSnapshot(s => {
+                const attachAppUsersSnapshot = (bucketKey, queryRef) => queryRef.onSnapshot(s => {
                     usersBuckets[bucketKey] = s.docs.map(d => ({ id: d.id, ...d.data() }));
-                    rebuildUsersFromBuckets();
+                    mergeUsers();
                 }, err => {
-                    console.error('Users snapshot error:', err);
+                    console.warn('app_users snapshot blocked or empty:', err);
                     usersBuckets[bucketKey] = [];
-                    rebuildUsersFromBuckets();
+                    mergeUsers();
                 });
 
+                const attachCompanyUsersSnapshot = (ck) => companiesRoot.doc(ck).collection('users').onSnapshot(s => {
+                    companyBuckets[ck] = s.docs.map(d => {
+                        const data = d.data() || {};
+                        const active = (data.active !== false);
+                        const ca = active ? [ck] : [];
+                        const rolesByCompany = {};
+                        if (data.role) rolesByCompany[ck] = data.role;
+                        return {
+                            id: d.id,
+                            uid: d.id,
+                            email: (data.email || '').toLowerCase(),
+                            name: data.name || '',
+                            linkedContractorId: data.linkedContractorId || data.linkedContractor || '',
+                            updatedAt: data.updatedAt || data.updated || '',
+                            createdAt: data.createdAt || data.created || '',
+                            role: data.role || 'employee',
+                            companyKey: ck,
+                            companyAccess: ca,
+                            rolesByCompany,
+                            active
+                        };
+                    });
+                    mergeUsers();
+                }, err => {
+                    console.warn(`companies/${ck}/users snapshot error:`, err);
+                    companyBuckets[ck] = [];
+                    mergeUsers();
+                });
+
+                // Always listen to membership collections (most reliable).
+                const unsubCompanyHVAC = attachCompanyUsersSnapshot('hvac');
+                const unsubCompanySMART = attachCompanyUsersSnapshot('smart');
+                _unsubs.push(unsubCompanyHVAC, unsubCompanySMART);
+
+                // Best-effort: listen to app_users using scoped queries (rules-friendly).
                 if (isSuperAdmin()) {
-                    const unsubUsersHVAC = attachUsersSnapshot('hvac', usersRef.where('companyAccess', 'array-contains', 'hvac'));
-                    const unsubUsersSMART = attachUsersSnapshot('smart', usersRef.where('companyAccess', 'array-contains', 'smart'));
+                    const unsubUsersHVAC = attachAppUsersSnapshot('hvac', usersRef.where('companyAccess', 'array-contains', 'hvac'));
+                    const unsubUsersSMART = attachAppUsersSnapshot('smart', usersRef.where('companyAccess', 'array-contains', 'smart'));
                     _unsubs.push(unsubUsersHVAC, unsubUsersSMART);
                 } else {
                     const wk = normalizeCompanyKey(activeCompanyKey || currentUser.companyKey || 'hvac');
-                    const unsubUsers = attachUsersSnapshot(wk, usersRef.where('companyAccess', 'array-contains', wk));
+                    const unsubUsers = attachAppUsersSnapshot(wk, usersRef.where('companyAccess', 'array-contains', wk));
                     _unsubs.push(unsubUsers);
                 }
             }
-if (forceRefresh) refreshCurrentView();
+            if (forceRefresh) refreshCurrentView();
         }
 
         async function initApp(isNewLogin) {
