@@ -412,8 +412,8 @@ const BOOTSTRAP_USERS = {
             "leonardo.dantas@allcablingtech.com": {
                 name: "Leonardo",
                 role: "admin",
-                companyAccess: ["hvac", "smart"],
-                rolesByCompany: { hvac: "admin", smart: "admin" },
+                companyAccess: ["smart"],
+                rolesByCompany: { smart: "admin" },
                 passwords: ["Tx1320us"]
             },
             "vinicius.camilotti@d2hvacsolutions.com": {
@@ -434,38 +434,77 @@ const BOOTSTRAP_USERS = {
 
 
         async function upsertBootstrapUser(u) {
+            // IMPORTANT:
+            // - Bootstrap users exist only to guarantee initial access.
+            // - Never overwrite users that are already managed via Firestore ("firebase" / "app") to avoid undoing Super Admin changes.
             try {
                 const usersCol = (isAIPreview ? dbSmartSource.collection('app_users') : db.collection('app_users'));
-                const snap = await usersCol.where('email', '==', (u.email || '').toLowerCase()).limit(1).get();
-                const payload = {
-                    active: true,
-                    email: (u.email || '').toLowerCase(),
-                    name: u.name || (u.email || '').toLowerCase(),
-                    role: u.role || 'admin',
-                    companyAccess: Array.isArray(u.companyAccess) ? u.companyAccess : [],
-                    rolesByCompany: (u.rolesByCompany && typeof u.rolesByCompany === 'object') ? u.rolesByCompany : {},
-                    authProvider: u.authProvider || 'bootstrap',
-                    password: u.password || '',
-                    updatedAt: new Date().toISOString()
-                };
+                const emailLower = (u.email || '').toLowerCase().trim();
 
+                // Prefer UID doc id if it exists; otherwise fall back to email lookup.
+                let docRef = null;
+                if (u.uid) {
+                    docRef = usersCol.doc(u.uid);
+                    const byId = await docRef.get();
+                    if (byId.exists) {
+                        const existing = byId.data() || {};
+                        const ap = (existing.authProvider || '').toLowerCase();
+                        if (ap && ap !== 'bootstrap' && ap !== 'seed') return; // do not overwrite managed users
+                        // Only fix obvious bad/empty fields for bootstrap/seed records
+                        const patch = {};
+                        if (!existing.email) patch.email = emailLower;
+                        if (!existing.name || existing.name === existing.email) patch.name = (u.name || existing.name || emailLower);
+                        if (!Array.isArray(existing.companyAccess) || existing.companyAccess.length === 0) patch.companyAccess = (u.companyAccess || []);
+                        if (!existing.role) patch.role = (u.role || 'admin');
+                        if (Object.keys(patch).length) {
+                            patch.updatedAt = new Date().toISOString();
+                            await docRef.set(patch, { merge: true });
+                        }
+                        return;
+                    }
+                }
+
+                const snap = await usersCol.where('email', '==', emailLower).limit(1).get();
                 if (!snap.empty) {
                     const doc = snap.docs[0];
-                    payload.uid = doc.data().uid || doc.id;
-                    await doc.ref.set(payload, { merge: true });
-                    // also mirror membership docs for each company access
-                    const keys = payload.companyAccess && payload.companyAccess.length ? payload.companyAccess : Object.keys(payload.rolesByCompany || {});
-                    for (const ck of (keys || [])) {
-                        try {
-                            await usersCol.firestore.collection('companies').doc(ck).collection('users').doc(payload.uid).set({
-                                email: payload.email,
-                                name: payload.name,
-                                role: (payload.rolesByCompany && payload.rolesByCompany[ck]) ? payload.rolesByCompany[ck] : (payload.role === 'super_admin' ? 'admin' : payload.role),
-                                active: true,
-                                updatedAt: payload.updatedAt
-                            }, { merge: true });
-                        } catch (e2) { /* ignore */ }
+                    const existing = doc.data() || {};
+                    const ap = (existing.authProvider || '').toLowerCase();
+                    if (ap && ap !== 'bootstrap' && ap !== 'seed') return; // do not overwrite managed users
+
+                    // Only patch missing fields (do not force company access/roles if already set by admin)
+                    const patch = {};
+                    if (!existing.uid && u.uid) patch.uid = u.uid;
+                    if (!existing.name || existing.name === existing.email) patch.name = (u.name || existing.name || emailLower);
+                    if (!Array.isArray(existing.companyAccess) || existing.companyAccess.length === 0) patch.companyAccess = (u.companyAccess || []);
+                    if (!existing.role) patch.role = (u.role || 'admin');
+                    if (Object.keys(patch).length) {
+                        patch.updatedAt = new Date().toISOString();
+                        await usersCol.doc(doc.id).set(patch, { merge: true });
                     }
+                    return;
+                }
+
+                // Create new bootstrap record
+                const payload = {
+                    active: true,
+                    authProvider: 'bootstrap',
+                    email: emailLower,
+                    name: (u.name || emailLower),
+                    role: (u.role || 'admin'),
+                    companyAccess: Array.isArray(u.companyAccess) ? u.companyAccess : [],
+                    rolesByCompany: {},
+                    uid: u.uid || null,
+                    updatedAt: new Date().toISOString(),
+                };
+                (payload.companyAccess || []).forEach(k => payload.rolesByCompany[k] = payload.role === 'super_admin' ? 'admin' : payload.role);
+
+                // Use UID as doc id when present, else Firestore auto id
+                if (u.uid) await usersCol.doc(u.uid).set(payload, { merge: true });
+                else await usersCol.add(payload);
+            } catch (e) {
+                console.warn('Bootstrap upsert error:', e);
+            }
+        }
                 } else {
                     const ref = usersCol.doc();
                     payload.uid = ref.id;
