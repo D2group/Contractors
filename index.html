@@ -194,10 +194,10 @@
                 <h1 class="text-2xl font-bold text-slate-800 text-center">D2 Contractors</h1>
                 <p id="login-subtitle" class="text-slate-500 text-sm mt-1">Payment & Compliance Control</p>
             <div id="company-picker-login" class="mt-5 grid grid-cols-2 gap-3">
-                <button type="button" onclick="selectCompany('hvac', true)" id="btn-company-hvac" class="group flex items-center justify-center gap-0 border border-slate-200 rounded-xl py-2 px-3 hover:bg-slate-50 transition"><img id="logo-hvac-mini" src="logo-D2-HVAC-Solutions-preto.png" alt="D2 HVAC" class="h-7 object-contain" onerror="this.style.display='none'">
+                <button type="button" onclick="selectCompany('hvac', true)" id="btn-company-hvac" class="group flex items-center justify-center gap-0 border border-slate-200 rounded-xl py-2 px-3 hover:bg-slate-50 transition"><img id="logo-hvac-mini" src="logo-D2-HVAC-Solutions-preto.png" alt="D2 HVAC" class="h-10 sm:h-11 object-contain" onerror="this.style.display='none'">
                 </button>
                 <button type="button" onclick="selectCompany('smart', true)" id="btn-company-smart" class="group flex items-center justify-center gap-0 border border-slate-200 rounded-xl py-2 px-3 hover:bg-slate-50 transition">
-                    <img id="logo-smart-mini" src="logo-D2-SmartHome-preto.png" alt="D2 Smart" class="h-7 object-contain" onerror="this.style.display='none'">
+                    <img id="logo-smart-mini" src="logo-D2-SmartHome-preto.png" alt="D2 Smart" class="h-10 sm:h-11 object-contain" onerror="this.style.display='none'">
                 </button>
             </div>
             <p class="mt-2 text-[11px] text-slate-400 text-center">Select the company workspace.</p>
@@ -340,8 +340,8 @@
             
             <div class="flex items-center gap-0">
                 <div id="header-company-pill" class="hidden md:flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg">
-                    <img id="header-company-logo" src="" alt="Company logo" class="w-5 h-5 object-contain" />
-                    <span id="header-company-label" class="text-xs font-bold text-slate-700">Company</span>
+                    <img id="header-company-logo" src="" alt="Company logo" class="w-11 h-11 object-contain" />
+                <span id="header-company-label" class="sr-only"></span>
                 </div>
                 <select id="company-switch" class="hidden text-xs font-bold bg-white border border-slate-300 rounded-lg px-2 py-2 outline-none" onchange="handleCompanySwitch(this.value)">
                     <option value="hvac">D2 HVAC</option>
