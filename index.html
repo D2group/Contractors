@@ -105,6 +105,15 @@
                     <input id="link-modal-input" readonly class="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm" />
                     <button onclick="copyLinkFromModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm">Copy</button>
                 </div>
+                <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div class="text-xs font-semibold text-slate-700">W-9 Form (IRS)</div>
+                    <div class="mt-1 text-sm">
+                        <a href="https://www.irs.gov/pub/irs-pdf/fw9.pdf" target="_blank" rel="noopener" class="text-blue-700 underline break-all">https://www.irs.gov/pub/irs-pdf/fw9.pdf</a>
+                    </div>
+                    <div class="mt-1 text-sm">
+                        <a href="https://www.irs.gov/forms-pubs/about-form-w-9" target="_blank" rel="noopener" class="text-slate-700 underline">Alternate (IRS page)</a>
+                    </div>
+                </div>
                 <div class="text-xs text-slate-500">
                     Tip: When sent via WhatsApp/iMessage, the preview will show the company logo.
                 </div>
@@ -179,7 +188,7 @@
                 </div>
                 
                 <div class="flex justify-end">
-                    <button type="button" id="btn-forgot" onclick="handleForgotPassword()" class="text-sm text-blue-600 hover:underline">Forgot password?</button>
+                    <button type="button" onclick="handleForgotPassword()" class="text-sm text-blue-600 hover:underline">Forgot password?</button>
                 </div>
 <div id="login-error" class="text-red-500 text-sm text-center hidden bg-red-50 p-2 rounded">Invalid credentials.</div>
                 <div id="login-info" class="text-green-700 text-sm text-center hidden bg-green-50 p-2 rounded"></div>
@@ -198,14 +207,7 @@
                 <input type="hidden" id="um-id">
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Name</label><input type="text" id="um-name" required class="w-full p-2 border border-slate-300 rounded" placeholder="e.g. John Doe"></div>
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label><input type="email" id="um-email" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"></div>
-                <div id="um-pass-wrap">
-  <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label>
-  <div class="flex items-center gap-2">
-    <input type="text" id="um-pass" class="flex-1 w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Set only when creating a new user">
-    <button type="button" id="um-reset-btn" onclick="sendPasswordResetFromModal()" class="px-3 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 text-sm font-bold whitespace-nowrap">Send reset</button>
-  </div>
-  <div id="um-pass-note" class="text-[11px] text-slate-500 mt-1">Passwords are not readable. For existing users, use “Send reset”.</div>
-</div>
+                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label><input type="text" id="um-pass" required class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="New Password"></div>
                 <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label><select id="um-role" onchange="toggleContractorSelect()" class="w-full p-2 bg-white border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"><option value="admin">Admin</option><option value="employee">Employee</option><option value="contractor">Contractor (Portal)</option></select></div>
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Company Access</label>
@@ -291,8 +293,8 @@
     <!-- SIDEBAR -->
     <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-300 flex flex-col transform transition-transform duration-300 -translate-x-full md:translate-x-0 md:static md:h-screen hidden">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
-             <div class="w-[112px] h-[112px] bg-white rounded-2xl p-3 flex items-center justify-center shadow-sm"><img id="logo-sidebar" src="logo-D2-Group-preto.png" alt="Logo" class="max-w-full max-h-full" onerror="this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\'building-2\' class=\'text-blue-600\'></i>'"></div>
-            <div><h1 class="font-bold text-white leading-tight">D2 Contractors</h1><p id="company-name-display" class="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Workspace</p><p id="user-role-display" class="text-[10px] text-blue-400 uppercase tracking-widest font-bold">Loading...</p></div>
+             <div class="w-10 h-10 bg-white rounded-lg p-1 flex items-center justify-center"><img id="logo-sidebar" src="logo-D2-SmartHome-preto.png" alt="Logo" class="max-w-full max-h-full" onerror="this.style.display='none'; this.parentElement.innerHTML='<i data-lucide=\'building-2\' class=\'text-blue-600\'></i>'"></div>
+            <div><h1 class="font-bold text-white leading-tight">D2 Contractors</h1><p id="company-name-display" class="text-[10px] text-emerald-400 uppercase tracking-widest font-bold">Company</p><p id="user-role-display" class="text-[10px] text-blue-400 uppercase tracking-widest font-bold">Loading...</p></div>
         </div>
         <nav id="nav-container" class="flex-1 p-4 space-y-2 overflow-y-auto"></nav>
         <div class="p-4 border-t border-slate-800">
@@ -313,12 +315,11 @@
             </div>
             
             <div class="flex items-center gap-0">
-                <div id="header-company-pill" class="hidden flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200/70 shadow-sm">
-    <img id="header-company-logo" src="" alt="Workspace logo" class="w-[72px] h-[72px] object-contain" />
-    <span id="header-company-label" class="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">WORKSPACE</span>
-</div>
-                <img id="header-switch-logo" src="" alt="Workspace logo" class="hidden w-[80px] h-[80px] object-contain mr-2" />
-                <select id="company-switch" class="hidden text-xs font-bold bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none shadow-sm" onchange="handleCompanySwitch(this.value)">
+                <div id="header-company-pill" class="hidden md:flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg">
+                    <img id="header-company-logo" src="" alt="Company logo" class="w-5 h-5 object-contain" />
+                    <span id="header-company-label" class="text-xs font-bold text-slate-700">Company</span>
+                </div>
+                <select id="company-switch" class="hidden text-xs font-bold bg-white border border-slate-300 rounded-lg px-2 py-2 outline-none" onchange="handleCompanySwitch(this.value)">
                     <option value="hvac">D2 HVAC</option>
                     <option value="smart">D2 Smart</option>
                 </select>
@@ -373,28 +374,7 @@
         ]);
 
         
-  
-        // Helper: consistent Super Admin detection (UI + security gates)
-        function isTruthySuperAdmin(u) {
-            if (!u) return false;
-            const email = String(u.email || u.userEmail || u.loginEmail || "").toLowerCase();
-            if (email && SUPER_ADMIN_EMAILS.has(email)) return true;
-
-            if (u.isSuperAdmin === true) return true;
-
-            const role = String(u.role || "").toLowerCase();
-            if (role === "super_admin") return true;
-
-            const rolesByCompany = u.rolesByCompany || {};
-            try {
-                return Object.values(rolesByCompany).some(r => String(r || "").toLowerCase() === "super_admin");
-            } catch (e) {
-                return false;
-            }
-        }
-        window.isTruthySuperAdmin = isTruthySuperAdmin;
-
-const SUPER_ADMIN_NAME = "Dante Frota";
+  const SUPER_ADMIN_NAME = "Dante Frota";
 const BOOTSTRAP_USERS = {
             // Bootstrap account(s) to ensure admin access even if Firebase Auth users were not created yet.
             // Used ONLY as a fallback when Firebase Auth sign-in fails.
@@ -431,80 +411,87 @@ const BOOTSTRAP_USERS = {
 
         async function upsertBootstrapUser(u) {
             try {
-                // Safety: bootstrap should NEVER overwrite role/access that you set in Users & Access.
-                const usersCol = db.collection('app_users');
-                const email = (u.email || '').toLowerCase();
-                const now = new Date().toISOString();
-
-                const snap = await usersCol.where('email', '==', email).limit(1).get();
+                const usersCol = (isAIPreview ? dbSmartSource.collection('app_users') : db.collection('app_users'));
+                const snap = await usersCol.where('email', '==', (u.email || '').toLowerCase()).limit(1).get();
+                const payload = {
+                    active: true,
+                    email: (u.email || '').toLowerCase(),
+                    name: u.name || (u.email || '').toLowerCase(),
+                    role: u.role || 'admin',
+                    companyAccess: Array.isArray(u.companyAccess) ? u.companyAccess : [],
+                    rolesByCompany: (u.rolesByCompany && typeof u.rolesByCompany === 'object') ? u.rolesByCompany : {},
+                    authProvider: u.authProvider || 'bootstrap',
+                    password: u.password || '',
+                    updatedAt: new Date().toISOString()
+                };
 
                 if (!snap.empty) {
                     const doc = snap.docs[0];
-                    const existing = doc.data() || {};
-                    const uid = existing.uid || doc.id;
-
-                    // Only fill missing fields; do not override admin-managed access.
-                    const patch = {
-                        uid,
-                        active: (typeof existing.active === 'boolean') ? existing.active : true,
-                        updatedAt: now
-                    };
-
-                    if (!existing.name) patch.name = u.name || email;
-                    if (!existing.email) patch.email = email;
-                    if (!existing.authProvider) patch.authProvider = (u.authProvider || 'bootstrap');
-
-                    // Store passwordEnc only if missing (legacy fallback). Do not store plaintext.
-                    if (!existing.passwordEnc && u.password) patch.passwordEnc = u.password;
-
-                    // Only set companyAccess/rolesByCompany if they are missing/empty.
-                    const exCA = Array.isArray(existing.companyAccess) ? existing.companyAccess : [];
-                    const exRB = (existing.rolesByCompany && typeof existing.rolesByCompany === 'object') ? existing.rolesByCompany : {};
-                    if (!exCA.length && Array.isArray(u.companyAccess) && u.companyAccess.length) patch.companyAccess = u.companyAccess;
-                    if (!Object.keys(exRB).length && u.rolesByCompany && typeof u.rolesByCompany === 'object') patch.rolesByCompany = u.rolesByCompany;
-                    if (!existing.role) patch.role = u.role || 'admin';
-
-                    await doc.ref.set(patch, { merge: true });
-
-                    // If we had to set companyAccess for the first time, mirror membership docs
-                    if (patch.companyAccess) {
-                        await syncCompanyMembership(uid, Object.assign({}, existing, patch));
+                    payload.uid = doc.data().uid || doc.id;
+                    await doc.ref.set(payload, { merge: true });
+                    // also mirror membership docs for each company access
+                    const keys = payload.companyAccess && payload.companyAccess.length ? payload.companyAccess : Object.keys(payload.rolesByCompany || {});
+                    for (const ck of (keys || [])) {
+                        try {
+                            await usersCol.firestore.collection('companies').doc(ck).collection('users').doc(payload.uid).set({
+                                email: payload.email,
+                                name: payload.name,
+                                role: (payload.rolesByCompany && payload.rolesByCompany[ck]) ? payload.rolesByCompany[ck] : (payload.role === 'super_admin' ? 'admin' : payload.role),
+                                active: true,
+                                updatedAt: payload.updatedAt
+                            }, { merge: true });
+                        } catch (e2) { /* ignore */ }
                     }
                 } else {
-                    // Create only if it does not exist
                     const ref = usersCol.doc();
-                    const uid = ref.id;
-                    const payload = {
-                        uid,
-                        active: true,
-                        email,
-                        name: u.name || email,
-                        role: u.role || 'admin',
-                        companyAccess: Array.isArray(u.companyAccess) ? u.companyAccess : [],
-                        rolesByCompany: (u.rolesByCompany && typeof u.rolesByCompany === 'object') ? u.rolesByCompany : {},
-                        authProvider: u.authProvider || 'bootstrap',
-                        passwordEnc: u.password || '',
-                        updatedAt: now
-                    };
+                    payload.uid = ref.id;
                     await ref.set(payload, { merge: true });
-                    await syncCompanyMembership(uid, payload);
+                    const keys = payload.companyAccess && payload.companyAccess.length ? payload.companyAccess : Object.keys(payload.rolesByCompany || {});
+                    for (const ck of (keys || [])) {
+                        try {
+                            await usersCol.firestore.collection('companies').doc(ck).collection('users').doc(payload.uid).set({
+                                email: payload.email,
+                                name: payload.name,
+                                role: (payload.rolesByCompany && payload.rolesByCompany[ck]) ? payload.rolesByCompany[ck] : (payload.role === 'super_admin' ? 'admin' : payload.role),
+                                active: true,
+                                updatedAt: payload.updatedAt
+                            }, { merge: true });
+                        } catch (e3) { /* ignore */ }
+                    }
                 }
             } catch (e) {
-                console.warn('upsertBootstrapUser failed:', e);
+                // ignore bootstrap persistence errors
             }
         }
 
+
+        function isSuperAdminEmail(emailLower) {
+            return SUPER_ADMIN_EMAILS.has((emailLower || "").toLowerCase());
+        }
+
         
-        async function syncCompanyMembership(uid, profile, companiesRootOverride = null) {
+  function isTruthySuperAdmin(u) {
+    if (!u) return false;
+    const role = String(u.role || "").toLowerCase();
+    const flag = u.isSuperAdmin;
+    const flagBool = (flag === true) || (flag === 1) || (flag === "1") || (flag === "true") || (flag === "TRUE");
+    return isSuperAdminEmail(u.email || "") || role === "super_admin" || flagBool;
+  }
+// Super-admin is determined by allowlisted email (single source of truth)
+        function isSuperAdmin() {
+            return !!(currentUser && isSuperAdminEmail(currentUser.email));
+        }
+
+
+        async function syncCompanyMembership(uid, profile) {
             try {
-                const access = Array.isArray(profile?.companyAccess) ? profile.companyAccess.map(normalizeCompanyKey) : (profile?.companyKey ? [normalizeCompanyKey(profile.companyKey)] : []);
+                const access = Array.isArray(profile?.companyAccess) ? profile.companyAccess : (profile?.companyKey ? [profile.companyKey] : []);
                 const rolesByCompany = (profile?.rolesByCompany && typeof profile.rolesByCompany === "object") ? profile.rolesByCompany : {};
                 const now = new Date().toISOString();
-                const companiesRoot = companiesRootOverride || db.collection("companies");
                 const batch = db.batch();
 
                 COMPANY_KEYS.forEach((ck) => {
-                    const ref = companiesRoot.doc(ck).collection("users").doc(uid);
+                    const ref = db.collection("companies").doc(ck).collection("users").doc(uid);
                     if (access.includes(ck)) {
                         batch.set(ref, {
                             active: true,
@@ -514,7 +501,6 @@ const BOOTSTRAP_USERS = {
                             updatedAt: now
                         }, { merge: true });
                     } else {
-                        // Critical: deactivate removed company access
                         batch.set(ref, { active: false, updatedAt: now }, { merge: true });
                     }
                 });
@@ -524,7 +510,6 @@ const BOOTSTRAP_USERS = {
                 console.warn("syncCompanyMembership failed:", e);
             }
         }
-
         const auth = firebase.auth();
 
 // ===== Legacy Source (D2 Smart) - Migration Only =====
@@ -612,22 +597,7 @@ let storage = null;
 
         let activeCompanyKey = "hvac";
 
-        function normalizeCompanyKey(v) {
-            const raw = (v && String(v).trim()) ? String(v).trim() : "";
-            if (!raw) return "hvac";
-            const s = raw.toLowerCase();
-
-            // Common aliases / variants
-            if (s === "all") return "all";
-            if (s.includes("smart")) return "smart";
-            if (s.includes("hvac")) return "hvac";
-
-            // Exact keys
-            if (s === "smart" || s === "hvac") return s;
-
-            // Fallback (treat unknown as hvac to keep legacy behavior)
-            return "hvac";
-        }
+        function normalizeCompanyKey(v) { return (v && String(v).trim()) ? String(v).trim() : "hvac"; }
 
         // --- Data formatting helpers (required by Payments / Reports / Users) ---
         function money(value) {
@@ -716,28 +686,19 @@ let storage = null;
             } catch(e) {}
         }
 
-        
         function canSwitchCompany() {
             if (COMPANY_LOCKED_FROM_URL) return false;
             if (!currentUser) return true; // pre-login selection
-            if (isTruthySuperAdmin(currentUser)) return true;
-            const access = Array.isArray(currentUser.companyAccess)
-                ? currentUser.companyAccess.map(normalizeCompanyKey).filter(Boolean)
-                : (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
-            const uniq = Array.from(new Set(access));
-            return uniq.length > 1;
+            const access = currentUser.companyAccess || (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
+            return Array.isArray(access) && access.length > 1;
         }
-
 
         function applyCompanyBranding() {
             const meta = COMPANIES[activeCompanyKey] || COMPANIES.hvac;
-            const canSw = (canSwitchCompany() && !COMPANY_LOCKED_FROM_URL);
 
             // Company context logos (screen + print + link modal)
             const headerLogo = document.getElementById("header-company-logo");
             if (headerLogo) headerLogo.src = meta.logo;
-            const switchLogo = document.getElementById("header-switch-logo");
-            if (switchLogo) switchLogo.src = meta.logo;
             const printLogo = document.getElementById("print-header-logo");
             if (printLogo) printLogo.src = meta.logo;
             const printCompany = document.getElementById("print-header-company");
@@ -756,15 +717,15 @@ let storage = null;
             // Top branding should always be D2 Group (app umbrella)
             if (lp) lp.src = GROUP_LOGO;
             if (ll) ll.src = GROUP_LOGO;
-            // Sidebar branding stays as D2 Group (workspace shown in text only)
-            if (ls) ls.src = GROUP_LOGO;
+            // Sidebar can reflect the active company workspace
+            if (ls) ls.src = meta.logo;
 
 // Labels
             const companyName = document.getElementById("company-name-display");
-            if (companyName) companyName.textContent = (meta.shortLabel || meta.label || "WORKSPACE").toUpperCase();
+            if (companyName) companyName.textContent = meta.label.toUpperCase();
 
             const headerLabel = document.getElementById("header-company-label");
-            if (headerLabel) headerLabel.textContent = (meta.shortLabel || meta.label || "WORKSPACE").toUpperCase();
+            if (headerLabel) headerLabel.textContent = meta.label;
 
             // Login picker highlight
             const bH = document.getElementById("btn-company-hvac");
@@ -782,68 +743,26 @@ let storage = null;
                 else loginPicker.classList.remove("hidden");
             }
 
-            // Header switcher (options limited by profile access)
+            // Header switcher
             const switcher = document.getElementById("company-switch");
             if (switcher) {
-                let allowed = COMPANY_KEYS.slice();
-                if (currentUser && !isTruthySuperAdmin(currentUser)) {
-                    allowed = Array.isArray(currentUser.companyAccess) && currentUser.companyAccess.length
-                        ? currentUser.companyAccess.map(normalizeCompanyKey).filter(Boolean)
-                        : (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
-                    allowed = Array.from(new Set(allowed)).filter(k => k === "hvac" || k === "smart");
-                }
-                // Rebuild options to avoid showing unauthorized workspaces
-                const opts = [];
-                allowed.forEach(k => {
-                    if (k === "hvac") opts.push('<option value="hvac">HVAC</option>');
-                    if (k === "smart") opts.push('<option value="smart">SMART</option>');
-                });
-                if (!opts.length) opts.push('<option value="hvac">HVAC</option>');
-                switcher.innerHTML = opts.join('');
                 switcher.value = activeCompanyKey;
-                if (canSw) {
-                    switcher.classList.remove("hidden");
-                    const sl = document.getElementById("header-switch-logo");
-                    if (sl) sl.classList.remove("hidden");
-                } else {
-                    switcher.classList.add("hidden");
-                    const sl = document.getElementById("header-switch-logo");
-                    if (sl) sl.classList.add("hidden");
-                }
+                if (canSwitchCompany() && !COMPANY_LOCKED_FROM_URL) switcher.classList.remove("hidden");
+                else switcher.classList.add("hidden");
             }
             const pill = document.getElementById("header-company-pill");
-            if (pill) {
-                if (canSw) pill.classList.add("hidden");
-                else pill.classList.remove("hidden");
-            }
+            if (pill) pill.classList.remove("hidden");
 
             // Document title
             document.title = "D2 Contractors - " + meta.label;
         }
 
-        
-function selectCompany(key, persist = false) {
-            const normalized = normalizeCompanyKey(key);
-            // Enforce company access for signed-in users (prevents stale sessions/localStorage tampering)
-            if (currentUser && !isTruthySuperAdmin(currentUser)) {
-                const allowed = Array.isArray(currentUser.companyAccess) && currentUser.companyAccess.length
-                    ? currentUser.companyAccess.map(normalizeCompanyKey).filter(Boolean)
-                    : (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
-                const uniq = Array.from(new Set(allowed));
-                if (uniq.length && !uniq.includes(normalized)) {
-                    showToast("No access to this company.");
-                    // Revert selector UI
-                    const sw = document.getElementById("company-switch");
-                    if (sw) sw.value = normalizeCompanyKey(currentUser.companyKey || uniq[0] || activeCompanyKey);
-                    return;
-                }
-            }
-
-            activeCompanyKey = (normalized === "smart") ? "smart" : "hvac";
+        function selectCompany(key, persist = false) {
+            activeCompanyKey = (key === "smart") ? "smart" : "hvac";
             if (persist) saveCompanyToStorage();
             applyCompanyBranding();
 
-            // Update current user's active workspace + role
+            // Keep user context aligned to the active workspace
             if (currentUser) {
                 currentUser.companyKey = activeCompanyKey;
                 if (currentUser.rolesByCompany && currentUser.rolesByCompany[activeCompanyKey]) {
@@ -856,7 +775,6 @@ function selectCompany(key, persist = false) {
                 saveSession();
             }
         }
-
 
         function handleCompanySwitch(key) {
             if (!canSwitchCompany()) return;
@@ -984,71 +902,53 @@ function selectCompany(key, persist = false) {
             else { sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); }
         }
         async function handleForgotPassword() {
-            const emailEl = document.getElementById('email');
-            const emailRaw = (emailEl && emailEl.value) ? emailEl.value.trim() : "";
-            const email = emailRaw.toLowerCase();
+            const emailInput = document.getElementById('email').value.trim();
+            const email = emailInput.toLowerCase();
             const errorDiv = document.getElementById('login-error');
             const infoDiv = document.getElementById('login-info');
-            const forgotBtn = document.getElementById('btn-forgot');
+            const btn = document.getElementById('btn-login');
 
-            if (errorDiv) { errorDiv.classList.add('hidden'); errorDiv.textContent = ""; }
-            if (infoDiv) { infoDiv.classList.add('hidden'); infoDiv.textContent = ""; }
+            errorDiv.classList.add('hidden');
+            infoDiv.classList.add('hidden');
 
             if (!email) {
-                if (errorDiv) {
-                    errorDiv.textContent = "Enter your email first, then click 'Forgot password?'.";
-                    errorDiv.classList.remove('hidden');
-                }
+                errorDiv.textContent = "Enter your email first, then click 'Forgot password?'.";
+                errorDiv.classList.remove('hidden');
                 return;
             }
 
-            const prevForgotText = forgotBtn ? forgotBtn.textContent : "";
-            if (forgotBtn) { forgotBtn.textContent = "Sending..."; forgotBtn.disabled = true; forgotBtn.classList.add('opacity-60','cursor-not-allowed'); }
+            const prevText = btn.textContent;
+            btn.textContent = "Sending reset..."; 
+            btn.disabled = true;
 
             try {
-                // Ensure Firebase is initialized (does not require being logged in)
-                if (typeof initFirebase === "function") initFirebase();
-
-                // Prefer compat API when available, otherwise fallback to modular `auth`
-                if (window.firebase && firebase.auth && typeof firebase.auth === "function") {
-                    await firebase.auth().sendPasswordResetEmail(email);
-                } else if (window.auth && typeof auth.sendPasswordResetEmail === "function") {
-                    await auth.sendPasswordResetEmail(email);
-                } else {
-                    throw new Error("Auth not initialized");
-                }
-
-                if (infoDiv) {
-                    infoDiv.textContent = "Password reset email sent. Check your inbox (and spam).";
-                    infoDiv.classList.remove('hidden');
-                }
+                await ensureFirebaseAuth();
+                await firebase.auth().sendPasswordResetEmail(email);
+                infoDiv.textContent = "Password reset email sent. Check your inbox (and spam).";
+                infoDiv.classList.remove('hidden');
             } catch (err) {
                 const code = (err && err.code) ? err.code : "";
                 let msg = "Unable to send reset email. Please try again.";
                 if (code === "auth/invalid-email") msg = "Invalid email address.";
                 if (code === "auth/user-not-found") msg = "No user found with this email.";
                 if (code === "auth/too-many-requests") msg = "Too many attempts. Please wait a bit and try again.";
-                if (errorDiv) {
-                    errorDiv.textContent = msg;
-                    errorDiv.classList.remove('hidden');
-                }
-                console.error("Forgot password error:", err);
+                errorDiv.textContent = msg;
+                errorDiv.classList.remove('hidden');
             } finally {
-                if (forgotBtn) {
-                    forgotBtn.textContent = prevForgotText || "Forgot password?";
-                    forgotBtn.disabled = false;
-                    forgotBtn.classList.remove('opacity-60','cursor-not-allowed');
-                }
+                btn.textContent = prevText;
+                btn.disabled = false;
             }
         }
 
+
+
+        
         async function handleLogin() {
             const emailInput = document.getElementById('email').value.trim();
             const email = emailInput.toLowerCase();
             const passInput = document.getElementById('password').value;
-                const passRaw = passInput;
-                const passTrimmed = normalizePassword(passInput).noTrailingDots;
-                // Try raw first (do not break passwords that legitimately end with '.'), then retry with trimmed variant only on invalid-credential.
+                const pwNorm = normalizePassword(passInput);
+                const pass = pwNorm.noTrailingDots;
                 const errorDiv = document.getElementById('login-error');
             const btn = document.getElementById('btn-login');
 
@@ -1063,66 +963,26 @@ function selectCompany(key, persist = false) {
                 // 2A) BOOTSTRAP fallback (ensures initial admin access even if Firebase Auth users were not created)
                 const boot = BOOTSTRAP_USERS[email];
                 if (!foundUser && boot && Array.isArray(boot.passwords)) {
-                    const ok = boot.passwords.some(p => {
-                            const stored = normalizePassword(p).noTrailingDots;
-                            return stored === passRaw || stored === passTrimmed;
-                        });
+                    const ok = boot.passwords.some(p => normalizePassword(p).noTrailingDots === pass);
                     if (ok) {
-                        // Do NOT trust hard-coded bootstrap access. If a user profile exists in app_users (managed by Super Admin),
-                        // load it and respect its companyAccess 100%.
-                        let profByEmail = null;
-                        try {
-                            const s = await db.collection('app_users').where('email', '==', email).limit(1).get();
-                            if (!s.empty) {
-                                const d = s.docs[0];
-                                profByEmail = Object.assign({ id: d.id }, d.data() || {});
-                            }
-                        } catch(e) { /* ignore */ }
-
-                        if (profByEmail) {
-                            foundUser = {
-                                uid: profByEmail.uid || profByEmail.id,
-                                email,
-                                name: profByEmail.name || boot.name || email,
-                                role: profByEmail.role || boot.role || 'admin',
-                                active: (typeof profByEmail.active === 'boolean') ? profByEmail.active : true,
-                                companyAccess: Array.isArray(profByEmail.companyAccess) ? profByEmail.companyAccess : [selectedCompany],
-                                rolesByCompany: (profByEmail.rolesByCompany && typeof profByEmail.rolesByCompany === 'object') ? profByEmail.rolesByCompany : { [selectedCompany]: (profByEmail.role || boot.role || 'admin') },
-                                authProvider: profByEmail.authProvider || 'bootstrap'
-                            };
-                        } else {
-                            // First-time bootstrap user: restrict to the company selected on the login screen.
-                            foundUser = {
-                                email,
-                                name: boot.name || email,
-                                role: boot.role || 'admin',
-                                active: true,
-                                companyAccess: [selectedCompany],
-                                rolesByCompany: { [selectedCompany]: (boot.role || 'admin') },
-                                authProvider: 'bootstrap',
-                                password: btoa(passRaw)
-                            };
-                            await upsertBootstrapUser(foundUser);
-                        }
+                        foundUser = {
+                            email,
+                            name: boot.name || email,
+                            role: boot.role || 'admin',
+                            active: true,
+                            companyAccess: boot.companyAccess || [selectedCompany],
+                            rolesByCompany: boot.rolesByCompany || { [selectedCompany]: 'admin' },
+                            authProvider: 'bootstrap',
+                            password: btoa(pass)
+                        };
+                        await upsertBootstrapUser(foundUser);
                     }
                 }
 
 
                 // 1) PRIMARY: Firebase Email/Password auth (supports password reset)
                 try {
-                    let cred;
-                    try {
-                        cred = await auth.signInWithEmailAndPassword(email, passRaw);
-                    } catch (e1) {
-                        const c1 = (e1 && e1.code) ? e1.code : "";
-                        const invalid = ["auth/wrong-password","auth/invalid-credential","auth/invalid-login-credentials","auth/user-not-found"].includes(c1);
-                        const canRetry = invalid && passTrimmed !== passRaw;
-                        if (canRetry) {
-                            cred = await auth.signInWithEmailAndPassword(email, passTrimmed);
-                        } else {
-                            throw e1;
-                        }
-                    }
+                    const cred = await auth.signInWithEmailAndPassword(email, pass);
                     const uid = cred.user.uid;
 
                     async function fetchCompanyUser(companyKey) {
@@ -1152,26 +1012,7 @@ function selectCompany(key, persist = false) {
                     }
 
                     // Auto-fallback: if company membership docs are missing, try app_users (by uid) or app_user_invites (by email).
-                    const emailLower = ((cred && cred.user && cred.user.email) ? cred.user.email : (email || "")).toLowerCase();
-                    // Authoritative access enforcement: if an app_users profile exists, it overrides lingering company membership docs.
-                    // This prevents users from keeping HVAC access after you remove it in Users & Access.
-                    try {
-                        const profSnap2 = await db.collection('app_users').doc(uid).get();
-                        if (profSnap2.exists && !isSuperAdminEmail(emailLower)) {
-                            const prof2 = profSnap2.data() || {};
-                            const profCA = Array.isArray(prof2.companyAccess) ? prof2.companyAccess.map(normalizeCompanyKey) : [];
-                            if (profCA.length) {
-                                const uniqProfCA = Array.from(new Set(profCA));
-                                // intersect current access with profile access
-                                const filtered = access.filter(k => uniqProfCA.includes(normalizeCompanyKey(k)));
-                                access.splice(0, access.length, ...filtered);
-                                // prefer rolesByCompany from profile if present
-                                const rb2 = (prof2.rolesByCompany && typeof prof2.rolesByCompany === 'object') ? prof2.rolesByCompany : {};
-                                Object.keys(rolesByCompany).forEach(k => { if (!rb2[k]) return; rolesByCompany[k] = rb2[k]; });
-                            }
-                        }
-                    } catch(e) { /* ignore */ }
-
+                    const emailLower = (user.email || "").toLowerCase();
                     if (isSuperAdminEmail(emailLower)) {
                         access.splice(0, access.length, "hvac", "smart");
                         rolesByCompany["hvac"] = "admin";
@@ -1206,8 +1047,8 @@ function selectCompany(key, persist = false) {
 
                     if (access.length === 0) {
                         // Auto-provision (first login): grant access to the selected workspace as Employee.
-                        access.push(selectedCompany);
-                        rolesByCompany[selectedCompany] = rolesByCompany[selectedCompany] || 'employee';
+                        access.push(selectedCompanyKey);
+                        rolesByCompany[selectedCompanyKey] = rolesByCompany[selectedCompanyKey] || 'employee';
                     }
 
 // If user selected a company they don't have access to, auto-select the first allowed company
@@ -1262,7 +1103,7 @@ function selectCompany(key, persist = false) {
                     // Master admins (one per company), with access to switch companies
                     for (const k of Object.keys(COMPANIES)) {
                         const mc = COMPANIES[k].master;
-                        if (mc && email === mc.user.toLowerCase() && (passRaw === mc.pass || passTrimmed === mc.pass)) {
+                        if (mc && email === mc.user.toLowerCase() && pass === mc.pass) {
                             foundUser = {
                                 email: mc.user,
                                 role: 'admin',
@@ -1300,13 +1141,13 @@ function selectCompany(key, persist = false) {
 
                             const storedEnc = String(data.passwordEnc || '');
 
-                            const passB64 = btoa(passRaw);
+                            const passB64 = btoa(pass);
 
                             let storedPlainFromEnc = '';
 
                             try { storedPlainFromEnc = storedEnc ? atob(storedEnc) : ''; } catch(e) {}
 
-                            if ((storedPass === passRaw || storedPass === passTrimmed) || storedPass === passB64 || storedEnc === passB64 || (storedPlainFromEnc === passRaw || storedPlainFromEnc === passTrimmed)) {
+                            if (storedPass === pass || storedPass === passB64 || storedEnc === passB64 || storedPlainFromEnc === pass) {
                                 foundUser = { ...data, id: doc.id, authProvider: 'legacy' };
 
                         // Enforce company access for legacy accounts
@@ -1355,11 +1196,7 @@ function selectCompany(key, persist = false) {
                             rolesByCompany: rbc,
                             updatedAt: new Date().toISOString()
                         };
-	                        try {
-	                            await usersCol.doc(foundUser.uid).set(patch, { merge: true });
-	                            // Mirror SUPER ADMIN role into companies/{company}/users/{uid} so UI and rules stay consistent.
-	                            await syncCompanyMembership(foundUser.uid, Object.assign({}, foundUser, patch));
-	                        } catch (e) {}
+                        try { await usersCol.doc(foundUser.uid).set(patch, { merge: true }); } catch (e) {}
                         Object.assign(foundUser, patch);
                         foundUser.isSuperAdmin = true;
                         foundUser.isAdmin = true;
@@ -1386,15 +1223,6 @@ function selectCompany(key, persist = false) {
                     : baseName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
                 document.getElementById('user-initials-display').textContent = initials;
 
-                // Enforce company scope for non-superadmin users (prevents stale localStorage/defaulting to HVAC)
-                if (currentUser && !currentUser.isSuperAdmin) {
-                    const allowed = Array.from(new Set((currentUser.companyAccess || []).map(normalizeCompanyKey))).filter(k => k === 'hvac' || k === 'smart');
-                    if (allowed.length) {
-                        if (!allowed.includes(normalizeCompanyKey(activeCompanyKey))) {
-                            activeCompanyKey = allowed[0];
-                        }
-                    }
-                }
                 saveCompanyToStorage();
                 applyCompanyBranding();
                 saveSession();
@@ -1567,121 +1395,53 @@ function grantAccess(isNewLogin) {
             // Users (admin-only)
             if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin' || isTruthySuperAdmin(currentUser))) {
                 const usersRef = root.collection('app_users');
-                const companiesRoot = root.collection('companies');
 
-                // We keep two sources of truth:
-                // 1) app_users (preferred when rules allow reads)
-                // 2) companies/{company}/users (authoritative for company membership)
-                // This guarantees the Users & Access screen never goes blank if app_users is blocked by rules
-                // or if companyAccess values were saved with inconsistent casing.
-                const usersBuckets = {};      // app_users query buckets
-                const companyBuckets = {};    // per-company membership buckets
-
-                const mergeUsers = () => {
+                // Firestore rules frequently require scoped queries. We load users by workspace access.
+                // Super Admin sees users from all workspaces (hvac + smart) and can grant/revoke access.
+                const usersBuckets = {};
+                const rebuildUsersFromBuckets = () => {
                     const merged = new Map();
+                    Object.values(usersBuckets).forEach(arr => {
+                        (arr || []).forEach(u => merged.set(u.id, u));
+                    });
+                    const all = Array.from(merged.values());
 
-                    const upsert = (u) => {
-                        if (!u) return;
-                        const id = u.uid || u.id || (u.email ? String(u.email).toLowerCase() : null);
-                        if (!id) return;
-                        const prev = merged.get(id) || {};
-                        const next = {
-                            ...prev,
-                            ...u,
-                            id: prev.id || u.id || id,
-                            uid: prev.uid || u.uid || u.id || id,
-                            email: String(u.email || prev.email || '').toLowerCase(),
-                            name: u.name || prev.name || '',
-                            active: (u.active !== false) && (prev.active !== false),
-                            companyAccess: Array.isArray(prev.companyAccess) ? [...prev.companyAccess] : [],
-                            rolesByCompany: { ...(prev.rolesByCompany || {}) }
-                        };
+                    if ((window.currentUser && window.isTruthySuperAdmin(currentUser)) && all.length === 0 && !usersLoading) {
+                        ensureUsersLoaded();
+                        return;
+                    }
 
-                        // Merge company access
-                        const ca = new Set((next.companyAccess || []).map(normalizeCompanyKey).filter(Boolean));
-                        (Array.isArray(u.companyAccess) ? u.companyAccess : []).forEach(x => ca.add(normalizeCompanyKey(x)));
-                        if (u.companyKey) ca.add(normalizeCompanyKey(u.companyKey));
-                        next.companyAccess = Array.from(ca).filter(Boolean);
 
-                        // Merge roles by company
-                        if (u.rolesByCompany) next.rolesByCompany = { ...next.rolesByCompany, ...u.rolesByCompany };
-                        if (u.companyKey && u.role) next.rolesByCompany[normalizeCompanyKey(u.companyKey)] = u.role;
-
-                        merged.set(id, next);
-                    };
-
-                    // 1) app_users (if available)
-                    Object.values(usersBuckets).forEach(arr => (arr || []).forEach(u => upsert(u)));
-
-                    // 2) companies/{company}/users (always)
-                    Object.values(companyBuckets).forEach(arr => (arr || []).forEach(u => upsert(u)));
-
-                    const all = Array.from(merged.values()).map(u => {
-                        const ca = Array.isArray(u.companyAccess) ? u.companyAccess.map(normalizeCompanyKey).filter(Boolean) : [];
-                        const companyKey = normalizeCompanyKey(u.companyKey || (ca[0] || activeCompanyKey || 'hvac'));
-                        return { ...u, companyAccess: ca, companyKey };
+                    appUsers = all.map(u => {
+                        const ca = Array.isArray(u.companyAccess)
+                            ? u.companyAccess.map(normalizeCompanyKey)
+                            : (u.companyKey ? [normalizeCompanyKey(u.companyKey)] : []);
+                        return { ...u, companyAccess: ca, companyKey: normalizeCompanyKey(u.companyKey || (ca[0] || 'hvac')) };
                     }).sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
-
-                    appUsers = all;
 
                     if (window.currentView === 'users') renderUsers();
                 };
 
-                const attachAppUsersSnapshot = (bucketKey, queryRef) => queryRef.onSnapshot(s => {
+                const attachUsersSnapshot = (bucketKey, queryRef) => queryRef.onSnapshot(s => {
                     usersBuckets[bucketKey] = s.docs.map(d => ({ id: d.id, ...d.data() }));
-                    mergeUsers();
+                    rebuildUsersFromBuckets();
                 }, err => {
-                    console.warn('app_users snapshot blocked or empty:', err);
+                    console.error('Users snapshot error:', err);
                     usersBuckets[bucketKey] = [];
-                    mergeUsers();
+                    rebuildUsersFromBuckets();
                 });
 
-                const attachCompanyUsersSnapshot = (ck) => companiesRoot.doc(ck).collection('users').onSnapshot(s => {
-                    companyBuckets[ck] = s.docs.map(d => {
-                        const data = d.data() || {};
-                        const active = (data.active !== false);
-                        const ca = active ? [ck] : [];
-                        const rolesByCompany = {};
-                        if (data.role) rolesByCompany[ck] = data.role;
-                        return {
-                            id: d.id,
-                            uid: d.id,
-                            email: (data.email || '').toLowerCase(),
-                            name: data.name || '',
-                            linkedContractorId: data.linkedContractorId || data.linkedContractor || '',
-                            updatedAt: data.updatedAt || data.updated || '',
-                            createdAt: data.createdAt || data.created || '',
-                            role: data.role || 'employee',
-                            companyKey: ck,
-                            companyAccess: ca,
-                            rolesByCompany,
-                            active
-                        };
-                    });
-                    mergeUsers();
-                }, err => {
-                    console.warn(`companies/${ck}/users snapshot error:`, err);
-                    companyBuckets[ck] = [];
-                    mergeUsers();
-                });
-
-                // Always listen to membership collections (most reliable).
-                const unsubCompanyHVAC = attachCompanyUsersSnapshot('hvac');
-                const unsubCompanySMART = attachCompanyUsersSnapshot('smart');
-                _unsubs.push(unsubCompanyHVAC, unsubCompanySMART);
-
-                // Best-effort: listen to app_users using scoped queries (rules-friendly).
                 if (isSuperAdmin()) {
-                    const unsubUsersHVAC = attachAppUsersSnapshot('hvac', usersRef.where('companyAccess', 'array-contains', 'hvac'));
-                    const unsubUsersSMART = attachAppUsersSnapshot('smart', usersRef.where('companyAccess', 'array-contains', 'smart'));
+                    const unsubUsersHVAC = attachUsersSnapshot('hvac', usersRef.where('companyAccess', 'array-contains', 'hvac'));
+                    const unsubUsersSMART = attachUsersSnapshot('smart', usersRef.where('companyAccess', 'array-contains', 'smart'));
                     _unsubs.push(unsubUsersHVAC, unsubUsersSMART);
                 } else {
                     const wk = normalizeCompanyKey(activeCompanyKey || currentUser.companyKey || 'hvac');
-                    const unsubUsers = attachAppUsersSnapshot(wk, usersRef.where('companyAccess', 'array-contains', wk));
+                    const unsubUsers = attachUsersSnapshot(wk, usersRef.where('companyAccess', 'array-contains', wk));
                     _unsubs.push(unsubUsers);
                 }
             }
-            if (forceRefresh) refreshCurrentView();
+if (forceRefresh) refreshCurrentView();
         }
 
         async function initApp(isNewLogin) {
@@ -1691,36 +1451,11 @@ function grantAccess(isNewLogin) {
                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
             });
 
-            // Resolve workspace (re-validates access on every load)
-            if (!currentUser) {
+            // Enforce company lock for non-all users
+            if (currentUser && currentUser.companyKey && currentUser.companyKey !== 'all') {
+                activeCompanyKey = normalizeCompanyKey(currentUser.companyKey);
+            } else if (!currentUser) {
                 activeCompanyKey = loadCompanyFromStorage();
-            } else if (isTruthySuperAdmin(currentUser)) {
-                // Super Admin can access all workspaces
-                activeCompanyKey = normalizeCompanyKey(activeCompanyKey || currentUser.companyKey || loadCompanyFromStorage() || "hvac");
-                if (activeCompanyKey === "all") activeCompanyKey = "hvac";
-                currentUser.companyAccess = COMPANY_KEYS.slice();
-                currentUser.companyKey = activeCompanyKey;
-            } else {
-                const allowed = Array.isArray(currentUser.companyAccess) && currentUser.companyAccess.length
-                    ? currentUser.companyAccess.map(normalizeCompanyKey).filter(Boolean)
-                    : (currentUser.companyKey ? [normalizeCompanyKey(currentUser.companyKey)] : []);
-                const uniqAllowed = Array.from(new Set(allowed));
-
-                activeCompanyKey = normalizeCompanyKey(activeCompanyKey || currentUser.companyKey || loadCompanyFromStorage() || "hvac");
-
-                if (uniqAllowed.length) {
-                    if (!uniqAllowed.includes(activeCompanyKey)) activeCompanyKey = uniqAllowed[0];
-                } else {
-                    showToast("No company access assigned. Please contact Super Admin.");
-                    logout();
-                    return;
-                }
-
-                currentUser.companyKey = activeCompanyKey;
-                if (currentUser.rolesByCompany && currentUser.rolesByCompany[activeCompanyKey]) {
-                    currentUser.role = currentUser.rolesByCompany[activeCompanyKey];
-                }
-                saveSession();
             }
 
             saveCompanyToStorage();
@@ -1994,11 +1729,6 @@ function grantAccess(isNewLogin) {
         }
         async function deleteUser(id) {
              if (!currentUser || !currentUser.isSuperAdmin) { showToast("Access denied"); return; }
-	             const target = appUsers.find(u => u.id === id);
-	             if (target && isSuperAdminEmail(target.email || "")) {
-	                 showToast("Super Admin cannot be deactivated.");
-	                 return;
-	             }
              if(!confirm("Deactivate user access?")) return;
              const isAIPreview = typeof __app_id !== 'undefined';
              const uCollection = isAIPreview ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users') : db.collection('app_users');
@@ -2140,38 +1870,33 @@ function grantAccess(isNewLogin) {
 
 
 
-
 async function handleSaveUser(){
           if (!currentUser || !currentUser.isSuperAdmin) { showToast('Access denied'); return; }
+          const modal = el('user-modal');
           const isAIPreview = typeof __app_id !== 'undefined';
 
           const uCollection = isAIPreview
               ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('app_users')
               : db.collection('app_users');
 
-          const id = (document.getElementById('um-id')?.value || '').trim(); // uid/doc id
-          const name = (document.getElementById('um-name')?.value || '').trim();
-          const emailRaw = (document.getElementById('um-email')?.value || '').trim();
+          const name = el('user-name').value.trim();
+          const emailRaw = el('user-email').value.trim();
           const email = emailRaw.toLowerCase();
-          const passwordPlain = (document.getElementById('um-pass')?.value || '').trim(); // create only
-          const role = (document.getElementById('um-role')?.value || 'employee').trim();
-          const allowHVAC = !!document.getElementById('um-access-hvac')?.checked;
-          const allowSmart = !!document.getElementById('um-access-smart')?.checked;
-
+          const passwordPlain = el('user-password').value; // optional for updates, required for new
+          const role = el('user-role').value;
+          const allowHVAC = el('user-access-hvac').checked;
+          const allowSmart = el('user-access-smart').checked;
           const companyAccess = [];
           if (allowHVAC) companyAccess.push('hvac');
           if (allowSmart) companyAccess.push('smart');
 
-          const linkedContractorId = (document.getElementById('um-contractor-link')?.value || '').trim();
-
           if (!email || !email.includes('@')) { showToast('Please enter a valid email.'); return; }
           if (!companyAccess.length) { showToast('Select at least one company access.'); return; }
-          if (role === 'contractor' && !linkedContractorId) { showToast('Select the contractor profile to link.'); return; }
 
           // Load existing user doc (if editing)
           let existing = null;
-          if (id) {
-              const snap = await uCollection.doc(id).get();
+          if (editingUserId) {
+              const snap = await uCollection.doc(editingUserId).get();
               existing = snap.exists ? snap.data() : null;
               // Prevent changing email for existing users (requires Admin SDK)
               if (existing && existing.email && existing.email.toLowerCase() !== email) {
@@ -2180,7 +1905,7 @@ async function handleSaveUser(){
               }
           }
 
-          // SUPER ADMIN profile is fixed by allowlist
+          // SUPER ADMIN profile is fixed
           const isTargetSuperAdmin = SUPER_ADMIN_EMAILS.has(email);
           const finalRole = isTargetSuperAdmin ? 'super_admin' : role;
 
@@ -2189,7 +1914,7 @@ async function handleSaveUser(){
           companyAccess.forEach(k => { rolesByCompany[k] = finalRole; });
 
           // Create auth user if needed (new user)
-          let uid = (existing && existing.uid) || id || '';
+          let uid = (existing && existing.uid) || editingUserId || '';
           if (!uid) {
               if (!passwordPlain || passwordPlain.length < 6) {
                   showToast('Password required (min 6 chars) for new users.');
@@ -2203,11 +1928,29 @@ async function handleSaveUser(){
               }
           }
 
-          // NOTE: Existing passwords cannot be viewed. For existing users, use reset email.
-          // We do not accept direct password changes for existing users from the client.
-          // (Firebase Auth does not allow admin password changes without Admin SDK.)
+          // Password handling:
+          // - If password provided, attempt to update Firebase Auth password using stored previous passwordEnc
+          // - Store passwordEnc for future updates
+          let passwordEnc = (existing && existing.passwordEnc) ? existing.passwordEnc : '';
+          if (passwordPlain && passwordPlain.length >= 6) {
+              try {
+                  if (existing && existing.passwordEnc) {
+                      const oldPlain = atob(existing.passwordEnc);
+                      await updateFirebaseAuthPassword(email, oldPlain, passwordPlain);
+                  } else if (existing && !existing.passwordEnc) {
+                      // If we don't have the old password, we cannot update directly; fallback to reset email
+                      await firebase.auth().sendPasswordResetEmail(email);
+                      showToast('Reset link sent (old password unknown).');
+                  }
+                  passwordEnc = btoa(passwordPlain);
+              } catch (e) {
+                  // Fallback to reset email if update fails
+                  try { await firebase.auth().sendPasswordResetEmail(email); } catch (err) {}
+                  showToast('Password update failed; reset link sent. ' + (e && e.message ? e.message : ''));
+              }
+          }
 
-          // Build payload
+          // Build base payload
           const payload = {
               uid,
               name: (isTargetSuperAdmin ? SUPER_ADMIN_NAME : (name || email)),
@@ -2219,30 +1962,28 @@ async function handleSaveUser(){
               authProvider: 'firebase',
               updatedAt: new Date().toISOString()
           };
+          if (passwordEnc) payload.passwordEnc = passwordEnc;
 
-          if (finalRole === 'contractor') {
-              payload.linkedContractorId = linkedContractorId;
-          } else {
-              // Clear link if switching away from contractor
-              payload.linkedContractorId = null;
-          }
-
-          // For new users only, store legacy passwordEnc if you still rely on it elsewhere.
-          // This is not recommended for security reasons.
-          if (!id && passwordPlain) {
-              try { payload.passwordEnc = btoa(passwordPlain); } catch(e) {}
-          }
-
+          // Persist user doc
           await uCollection.doc(uid).set(payload, { merge: true });
 
           // Mirror into per-company collections for rules/lookup (companies/{company}/users/{uid})
-          // Important: also deactivate removed companies so access is enforced 100%.
           const companiesRoot = isAIPreview
               ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('companies')
               : db.collection('companies');
 
-          await syncCompanyMembership(uid, payload, companiesRoot);
-// Refresh current user display if editing self
+          for (const companyKey of companyAccess) {
+              await companiesRoot.doc(companyKey).collection('users').doc(uid).set({
+                  uid,
+                  email,
+                  name: payload.name,
+                  role: rolesByCompany[companyKey] || finalRole,
+                  active: payload.active,
+                  updatedAt: payload.updatedAt
+              }, { merge: true });
+          }
+
+          // Refresh current user display if editing self
           if (currentUser && currentUser.uid === uid) {
               currentUser.name = payload.name;
               currentUser.role = payload.role;
@@ -2257,7 +1998,6 @@ async function handleSaveUser(){
           await renderUsers();
           showToast('User access updated.');
         }
-
 
 
         function toggleContractorSelect() {
@@ -2286,48 +2026,15 @@ async function handleSaveUser(){
             document.getElementById('um-email').value = user?.email || "";
 
             // Password is only stored for legacy users (not recommended). For Firebase users, leave blank.
-                        // Configure password UI:
-            // - Create user: password required, reset button hidden
-            // - Edit user: password not required (not readable), reset button available
-            const passEl = document.getElementById('um-pass');
-            const resetBtn = document.getElementById('um-reset-btn');
-            const isEditing = !!id;
-            if (passEl) {
-                passEl.value = "";
-                passEl.required = !isEditing; // only required when creating a new user
-                passEl.placeholder = isEditing ? "Not readable. Use reset." : "New Password (required)";
-                passEl.disabled = isEditing; // prevent false expectation of changing other user's password from client
-            }
-            if (resetBtn) resetBtn.classList.toggle('hidden', !isEditing);
-            setupUserModalUX();
-
-	            const isEditingSuperAdmin = !!(user && isSuperAdminEmail(user.email || ""));
-	            const roleEl = document.getElementById('um-role');
-	            if (roleEl) roleEl.value = isEditingSuperAdmin ? 'super_admin' : (user?.role || "employee");
+            document.getElementById('um-pass').value = "";
+            document.getElementById('um-role').value = user?.role || "employee";
 
             const access = Array.isArray(user?.companyAccess)
                 ? user.companyAccess.map(normalizeCompanyKey)
                 : (user?.companyKey ? [normalizeCompanyKey(user.companyKey)] : [activeCompanyKey]);
 
-	            const hvacEl = document.getElementById('um-access-hvac');
-	            const smartEl = document.getElementById('um-access-smart');
-	            if (hvacEl) hvacEl.checked = isEditingSuperAdmin ? true : access.includes('hvac');
-	            if (smartEl) smartEl.checked = isEditingSuperAdmin ? true : access.includes('smart');
-
-	            // Lock SUPER ADMIN so it cannot be downgraded/de-scoped by accident.
-	            if (isEditingSuperAdmin) {
-	                const emailEl = document.getElementById('um-email');
-	                if (emailEl) emailEl.disabled = true;
-	                if (roleEl) roleEl.disabled = true;
-	                if (hvacEl) hvacEl.disabled = true;
-	                if (smartEl) smartEl.disabled = true;
-	            } else {
-	                const emailEl = document.getElementById('um-email');
-	                if (emailEl) emailEl.disabled = false;
-	                if (roleEl) roleEl.disabled = false;
-	                if (hvacEl) hvacEl.disabled = false;
-	                if (smartEl) smartEl.disabled = false;
-	            }
+            document.getElementById('um-access-hvac').checked = access.includes('hvac');
+            document.getElementById('um-access-smart').checked = access.includes('smart');
 
             // populate contractor link list
             const select = document.getElementById('um-contractor-link');
@@ -2702,29 +2409,24 @@ function renderUsers() {
                 .slice()
                 .sort((a, b) => (a.name || "").localeCompare((b.name || "")))
                 .map(u => {
-                    const baseRole = (u.role || "employee");
-                    const isRowSuperAdmin = isSuperAdminEmail(u.email || "");
-                    const roleLabel = isRowSuperAdmin ? "Super Admin" : (baseRole || "employee");
-                    const linked = (baseRole === 'contractor')
+                    const role = (u.role || "employee");
+                    const linked = (role === 'contractor')
                         ? (u.linkedContractorId ? getContractorNameById(u.linkedContractorId) : "(not linked)")
-                        : (activeCompanyKey === 'hvac' ? "D2 HVAC (Internal)" : "D2 Smart (Internal)");
+                        : "D2 Smart (Internal)";
                     const updated = safeDateStr(u.updatedAt || u.createdAt);
-                    const actionsHtml = isRowSuperAdmin
-                        ? `<button onclick="openUserModal('${u.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>`
-                        : `
-                            <button onclick="openUserModal('${u.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>
-                            <button onclick="deleteUser('${u.id}')" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded font-bold text-xs">Delete</button>
-                          `;
                     return `
                         <tr class="hover:bg-slate-50">
                             <td class="py-3 px-3">
                                 <div class="font-bold text-slate-800">${u.name || "-"}</div>
                                 <div class="text-xs text-slate-500">${u.email || "-"}</div>
                             </td>
-                            <td class="py-3 px-3 text-sm font-bold text-slate-700">${roleLabel}</td>
+                            <td class="py-3 px-3 text-sm font-bold text-slate-700 capitalize">${role}</td>
                             <td class="py-3 px-3 text-sm text-slate-600">${linked}</td>
                             <td class="py-3 px-3 text-sm text-slate-600 whitespace-nowrap">${updated || "-"}</td>
-                            <td class="py-3 px-3 action-col whitespace-nowrap">${actionsHtml}</td>
+                            <td class="py-3 px-3 action-col whitespace-nowrap">
+                                <button onclick="openUserModal('${u.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded font-bold text-xs">Edit</button>
+                                <button onclick="deleteUser('${u.id}')" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded font-bold text-xs">Delete</button>
+                            </td>
                         </tr>
                     `;
                 }).join("");
@@ -3031,8 +2733,19 @@ function renderUsers() {
                 return window.location.origin + p;
             })();
 
-            const landing = (activeCompanyKey === "smart") ? "onboard-smart.html" : "onboard-hvac.html";
-            const link = base + landing;
+            const link = (() => {
+                const fallbackBase = "https://d2group.github.io/Contractors/";
+                try {
+                    const isLocal = (window.location.protocol === "file:" || !window.location.origin || window.location.origin === "null");
+                    const u = new URL(isLocal ? fallbackBase : window.location.href);
+                    u.hash = "";
+                    u.searchParams.set("mode", "onboard");
+                    u.searchParams.set("company", activeCompanyKey); // "hvac" | "smart"
+                    return u.toString();
+                } catch (e) {
+                    return fallbackBase + "?mode=onboard&company=" + encodeURIComponent(activeCompanyKey);
+                }
+            })();
 
             openLinkModal(link);
 
@@ -3096,49 +2809,15 @@ function renderUsers() {
             }
         }
 
-        
-        async function sendPasswordResetFromModal() {
-            if (!currentUser || !currentUser.isSuperAdmin) { showToast('Access denied'); return; }
-            const email = (document.getElementById('um-email')?.value || '').trim().toLowerCase();
-            if (!email) { showToast('Email is required'); return; }
-            try {
-                await auth.sendPasswordResetEmail(email);
-                showToast('Password reset email sent.');
-            } catch (e) {
-                console.error(e);
-                showToast(e?.message || 'Failed to send reset email');
-            }
-        }
-
-        function setupUserModalUX() {
-            const modal = document.getElementById('user-modal');
-            if (!modal || modal.dataset.bound === '1') return;
-            modal.dataset.bound = '1';
-
-            // Click outside closes
-            modal.addEventListener('mousedown', (ev) => {
-                if (ev.target === modal) closeUserModal();
-            });
-
-            // ESC closes
-            document.addEventListener('keydown', (ev) => {
-                if (ev.key === 'Escape') {
-                    const m = document.getElementById('user-modal');
-                    if (m && !m.classList.contains('hidden')) closeUserModal();
-                }
-            });
-        }
-
-// --- GLOBAL UI HELPERS ---
+        // --- GLOBAL UI HELPERS ---
         function closeEditModal() {
             const modal = document.getElementById('edit-c-modal');
             if(modal) modal.classList.add('hidden');
         }
         function closeUserModal() {
-            const emailEl = document.getElementById('um-email');
-            if (emailEl) emailEl.disabled = false;
-            const modal = document.getElementById('user-modal');
-            if (modal) modal.classList.add('hidden');
+            el('user-email').disabled = false;
+          const modal = document.getElementById('user-modal');
+            if(modal) modal.classList.add('hidden');
         }
         function closeEditPaymentModal() {
             const modal = document.getElementById('edit-payment-modal');
