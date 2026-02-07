@@ -68,6 +68,30 @@
         }
         .print-header { display: none; }
     </style>
+
+<style>
+  /* Robust password masking across browsers (avoids edge cases where input[type] toggling can fail) */
+  .pw-masked { -webkit-text-security: disc; }
+</style>
+
+    <!-- D2 FIX34: deterministic onboarding routing (pre-JS) -->
+    <script>
+      (function(){
+        try{
+          var qs=new URLSearchParams(window.location.search||"");
+          var mode=(qs.get('mode')||'').toLowerCase();
+          if(mode==='onboard'){
+            document.documentElement.setAttribute('data-mode','onboard');
+          }
+        }catch(e){}
+      })();
+    </script>
+    <style>
+      /* If onboarding link is opened, never show login screen even if main JS fails/caches */
+      html[data-mode="onboard"] #login-screen{ display:none !important; }
+            html[data-mode="onboard"] #public-onboard-view{ display:block !important; }
+    </style>
+
 </head>
 <body class="bg-slate-100 text-slate-900 font-sans h-screen flex overflow-hidden relative">
     <!-- Company header for print + quick context -->
@@ -206,9 +230,12 @@
             <form id="login-form" class="space-y-4" onsubmit="event.preventDefault(); return false;">
                 <div class="relative"><input type="email" id="email" autocapitalize="none" autocomplete="email" class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Email" required><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="mail" class="w-5 h-5"></i></div></div>
                 <div class="relative">
-                    <input type="password" id="password" autocapitalize="none" class="w-full pl-10 pr-12 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Password" required>
+                    <!-- Standard password field with robust show/hide toggle (uses node swap for cross-browser stability). -->
+                    <input type="password" id="password" autocapitalize="none" class="w-full pl-10 pr-20 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition-all " placeholder="Password" required>
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i data-lucide="lock" class="w-5 h-5"></i></div>
-                    <button type="button" onclick="toggleLoginPassword()" class="absolute inset-y-0 right-0 pr-3 flex items-center justify-center text-slate-600 hover:text-blue-700 transition-colors z-10 cursor-pointer"><span id="pwToggleText" class="text-[11px] font-extrabold tracking-wider">SHOW</span></button>
+                    <button id="pwToggleBtn" type="button" onclick="toggleLoginPassword()" aria-label="Show password" class="absolute inset-y-0 right-2 flex items-center justify-center px-2 rounded-md bg-slate-100/80 hover:bg-slate-200 text-slate-700 hover:text-blue-700 transition-colors z-30 cursor-pointer shadow-sm border border-slate-200">
+                        <span id="pwToggleText" class="text-[11px] font-extrabold tracking-wider leading-none">SHOW</span>
+                    </button>
                 </div>
                 
                 <div class="flex justify-end">
@@ -219,7 +246,7 @@
 
                 <button type="button" id="btn-login" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all shadow-lg active:scale-95">Sign In</button>
             </form>
-            <div class="mt-6 text-center text-xs text-slate-400">© 2026 D2 Contractors</div>
+            <div class="mt-6 text-center text-xs text-slate-400">© 2026 D2 Contractors • FIX34</div>
         </div>
     </div>
 
@@ -498,32 +525,38 @@ const BOOTSTRAP_USERS = {
                 };
                 (payload.companyAccess || []).forEach(k => payload.rolesByCompany[k] = payload.role === 'super_admin' ? 'admin' : payload.role);
 
-                // Use UID as doc id when present, else Firestore auto id
-                if (u.uid) await usersCol.doc(u.uid).set(payload, { merge: true });
-                else await usersCol.add(payload);
-            } catch (e) {
-                console.warn('Bootstrap upsert error:', e);
-            }
-        }
+                // Use UID as doc id when present; otherwise create one and persist it as payload.uid
+                if (u.uid) {
+                  payload.uid = String(u.uid);
+                  await usersCol.doc(payload.uid).set(payload, { merge: true });
                 } else {
-                    const ref = usersCol.doc();
-                    payload.uid = ref.id;
-                    await ref.set(payload, { merge: true });
-                    const keys = payload.companyAccess && payload.companyAccess.length ? payload.companyAccess : Object.keys(payload.rolesByCompany || {});
-                    for (const ck of (keys || [])) {
-                        try {
-                            await usersCol.firestore.collection('companies').doc(ck).collection('users').doc(payload.uid).set({
-                                email: payload.email,
-                                name: payload.name,
-                                role: (payload.rolesByCompany && payload.rolesByCompany[ck]) ? payload.rolesByCompany[ck] : (payload.role === 'super_admin' ? 'admin' : payload.role),
-                                active: true,
-                                updatedAt: payload.updatedAt
-                            }, { merge: true });
-                        } catch (e3) { /* ignore */ }
+                  const ref = usersCol.doc(); // generate deterministic id so we can reference user under companies/*
+                  payload.uid = ref.id;
+                  await ref.set(payload, { merge: true });
+
+                  // Also ensure company/user mapping exists (companies/{companyKey}/users/{uid})
+                  const companyKeys = Array.from(new Set([
+                    ...Object.keys(payload.rolesByCompany || {}),
+                    ...Object.keys(payload.companyAccess || {})
+                  ]));
+                  for (const ck of companyKeys) {
+                    try {
+                      await db.collection('companies').doc(ck).collection('users').doc(payload.uid).set({
+                        uid: payload.uid,
+                        email: payload.email || '',
+                        name: payload.name || '',
+                        role: (payload.rolesByCompany && payload.rolesByCompany[ck]) ? payload.rolesByCompany[ck] : 'contractor',
+                        active: payload.active !== false,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                      }, { merge: true });
+                    } catch (e) {
+                      // non-fatal; continue bootstrapping other companies/users
+                      console.warn('bootstrap company user mapping failed', ck, e);
                     }
+                  }
                 }
             } catch (e) {
-                // ignore bootstrap persistence errors
+                console.warn('Bootstrap upsert error:', e);
             }
         }
 
@@ -950,12 +983,36 @@ let storage = null;
         }
 
         function toggleLoginPassword() {
-            const pwdInput = document.getElementById('password');
-            const t = document.getElementById('pwToggleText');
-            if (!pwdInput) return;
-            const isHidden = (pwdInput.type === "password");
-            pwdInput.type = isHidden ? "text" : "password";
-            if (t) t.textContent = isHidden ? "HIDE" : "SHOW";
+            const input = document.getElementById('password');
+            const text = document.getElementById('pwToggleText');
+            const btn  = document.getElementById('pwToggleBtn');
+            if (!input) return;
+
+            const wasPassword = (input.type === 'password');
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+
+            const nextType = wasPassword ? 'text' : 'password';
+
+            try {
+                if (typeof safeSetType === 'function') {
+                    safeSetType(input, nextType);
+                } else {
+                    input.type = nextType;
+                }
+            } catch (e) {
+                try { input.type = nextType; } catch (_) {}
+            }
+
+            if (text) text.textContent = wasPassword ? 'HIDE' : 'SHOW';
+            if (btn) btn.setAttribute('aria-label', wasPassword ? 'Hide password' : 'Show password');
+
+            // Restore cursor/selection when possible
+            try {
+                if (start != null && end != null) input.setSelectionRange(start, end);
+            } catch (e) {}
+
+            try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
         }
 
         function toggleMobileMenu() {
@@ -2896,11 +2953,25 @@ function renderUsers() {
         }
         // --- BOOTSTRAP ---
         window.addEventListener('DOMContentLoaded', () => {
+            const qs = new URLSearchParams(location.search);
+            const mode = (qs.get('mode') || '').toLowerCase();
+
+            // Public contractor onboarding flow (no login UI).
+            if (mode === 'onboard') {
+                Promise.resolve()
+                    .then(() => initPublicMode())
+                    .catch((e) => {
+                        console.error(e);
+                        try { showToast("Onboarding initialization error"); } catch(_) {}
+                    });
+                return;
+            }
+
             Promise.resolve()
                 .then(() => initApp())
                 .catch((e) => {
                     console.error(e);
-                    try { showToast("App initialization error"); } catch(_){}
+                    try { showToast("App initialization error"); } catch(_) {}
                 });
         });
 
